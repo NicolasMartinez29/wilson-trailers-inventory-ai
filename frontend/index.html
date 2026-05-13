@@ -6,9 +6,9 @@
 <title>Wilson Trailers // Inventory AI</title>
 <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/assets/styles.css?v=20260513b">
+<link rel="stylesheet" href="/static/assets/styles.css?v=20260513c">
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
-<script src="/static/assets/app.js?v=20260513b"></script>
+<script src="/static/assets/app.js?v=20260513c"></script>
 </head>
 <body x-data="appRoot()" x-init="boot()">
 
@@ -16,8 +16,6 @@
 <div class="splash" :class="{'splash-done': !splash}">
   <div class="splash-grid"></div>
   <div class="splash-glow"></div>
-
-  <div class="splash-skip" @click="enterApp(true)">SKIP →</div>
 
   <div class="splash-content">
     <div class="splash-eyebrow">EST. 1883 · SIOUX CITY, IA</div>

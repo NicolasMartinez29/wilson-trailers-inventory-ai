@@ -54,8 +54,8 @@ function appRoot() {
       { at: 92,   label: 'READY' },
     ],
     async boot() {
-      const seen = localStorage.getItem('wt_splash_seen');
-      const total = seen ? 2400 : 4800;  // ms total splash duration
+      // Splash runs full duration every time. No skip, no click escape.
+      const total = 5200;
       const start = performance.now();
 
       const tick = () => {
@@ -64,28 +64,25 @@ function appRoot() {
         this.splashPct = pct;
         const step = this._splashSteps.slice().reverse().find(s => pct >= s.at);
         if (step) this.splashStatus = step.label;
-        if (pct < 100 && this.splash) {
+        if (pct < 100) {
           this._splashTimer = requestAnimationFrame(tick);
         } else {
-          setTimeout(() => this.enterApp(false), 250);
+          setTimeout(() => this.endSplash(), 300);
         }
       };
       requestAnimationFrame(tick);
     },
-    enterApp(byClick) {
+    endSplash() {
       if (!this.splash) return;
-      if (this._splashTimer) cancelAnimationFrame(this._splashTimer);
-      // Fade-out class is applied via :class binding when splash flips false
       this.splash = false;
-      const seen = localStorage.getItem('wt_splash_seen');
+      const seen = localStorage.getItem('wt_tour_seen');
       if (!seen) {
-        localStorage.setItem('wt_splash_seen', '1');
-        // Wait for splash fade-out (.55s) + small buffer
+        localStorage.setItem('wt_tour_seen', '1');
         setTimeout(() => this.tour.start(), 700);
       }
     },
     resetTour() {
-      localStorage.removeItem('wt_splash_seen');
+      localStorage.removeItem('wt_tour_seen');
       location.reload();
     },
   };
