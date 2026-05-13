@@ -79,9 +79,9 @@ function dashboardApp() {
             labels: this.kpi.monthly_trend.map(m => m.label.toLowerCase()),
             datasets: [
               { label: 'purchases', data: this.kpi.monthly_trend.map(m => m.purchases),
-                borderColor: '#E30613', backgroundColor: 'rgba(227,6,19,0.10)', tension: .3, fill: true, borderWidth: 1.5, pointRadius: 2, pointBackgroundColor:'#E30613' },
+                borderColor: '#E30613', backgroundColor: 'rgba(227,6,19,0.14)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor:'#E30613', pointBorderColor:'#E30613' },
               { label: 'expenses', data: this.kpi.monthly_trend.map(m => m.expenses),
-                borderColor: '#A1A1AA', backgroundColor: 'rgba(161,161,170,0.05)', tension: .3, fill: true, borderWidth: 1.5, pointRadius: 2, pointBackgroundColor:'#A1A1AA' },
+                borderColor: '#CBD5E1', backgroundColor: 'rgba(203,213,225,0.08)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor:'#CBD5E1', pointBorderColor:'#CBD5E1' },
             ],
           },
           options: {
@@ -106,9 +106,10 @@ function dashboardApp() {
             labels: this.kpi.top_categories.map(c => c.category),
             datasets: [{
               data: this.kpi.top_categories.map(c => c.value),
-              backgroundColor: ['#E30613','#A1A1AA','#F59E0B','#22C55E','#60A5FA','#71717A','#52525B','#7A0309','#3F3F46','#27272A'],
-              borderColor: '#0F0F12',
+              backgroundColor: ['#E30613','#F59E0B','#22C55E','#60A5FA','#A78BFA','#F472B6','#94A3B8','#FB923C','#34D399','#7A0309'],
+              borderColor: '#09090B',
               borderWidth: 2,
+              hoverOffset: 8,
             }]
           },
           options: {
