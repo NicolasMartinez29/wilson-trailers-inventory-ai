@@ -5,32 +5,77 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wilson Trailers // Inventory AI</title>
 <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/assets/styles.css?v=20260513a">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/assets/styles.css?v=20260513b">
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
-<script src="/static/assets/app.js?v=20260513a"></script>
+<script src="/static/assets/app.js?v=20260513b"></script>
 </head>
 <body x-data="appRoot()" x-init="boot()">
 
-<!-- ============ SPLASH SCREEN ============ -->
-<div class="splash" x-show="splash" x-cloak @click="enterApp()">
-  <div class="splash-logo">
-    <svg viewBox="0 0 280 80" xmlns="http://www.w3.org/2000/svg" width="220" height="80">
-      <path class="wt-W" d="M8 18 L24 62 L34 38 L44 62 L60 18 L52 18 L40 48 L34 26 L28 48 L16 18 Z"/>
-    </svg>
+<!-- ============ SPLASH SCREEN (visible by default, faded out via class) ============ -->
+<div class="splash" :class="{'splash-done': !splash}">
+  <div class="splash-grid"></div>
+  <div class="splash-glow"></div>
+
+  <div class="splash-skip" @click="enterApp(true)">SKIP →</div>
+
+  <div class="splash-content">
+    <div class="splash-eyebrow">EST. 1883 · SIOUX CITY, IA</div>
+
+    <div class="splash-logo">
+      <!-- Wilson-style W: bold bevelled silhouette with red flag accent -->
+      <svg viewBox="0 0 360 200" xmlns="http://www.w3.org/2000/svg" width="320" height="180" preserveAspectRatio="xMidYMid meet">
+        <!-- Red flag/banner sweeping behind W -->
+        <path class="wt-flag" d="M 30 30 Q 180 -20 330 30 L 330 60 Q 180 10 30 60 Z" />
+        <!-- Main W solid -->
+        <path class="wt-W"
+              d="M 40 50
+                 L 90 170
+                 L 130 100
+                 L 170 170
+                 L 210 100
+                 L 250 170
+                 L 300 50
+                 L 270 50
+                 L 235 130
+                 L 195 60
+                 L 170 110
+                 L 145 60
+                 L 105 130
+                 L 70 50 Z"/>
+        <!-- Highlight bevel on W (subtle white inner) -->
+        <path class="wt-W-bevel"
+              d="M 90 170 L 130 100 L 170 170 L 210 100 L 250 170"/>
+      </svg>
+    </div>
+
+    <h1 class="splash-title">WILSON TRAILERS</h1>
+    <div class="splash-slogan">— AMERICA'S FAVORITE TRAILER —</div>
+
+    <div class="splash-divider"></div>
+
+    <div class="splash-subsystem">
+      <div class="splash-subsystem-label">SYSTEM MODULE</div>
+      <div class="splash-subsystem-name">Inventory Intelligence</div>
+    </div>
+
+    <div class="splash-loader">
+      <div class="splash-loader-label">
+        <span x-text="splashStatus"></span>
+        <span class="splash-loader-pct" x-text="splashPct + '%'"></span>
+      </div>
+      <div class="splash-loader-bar">
+        <div class="splash-loader-fill" :style="`width:${splashPct}%`"></div>
+      </div>
+    </div>
+
+    <div class="splash-meta">
+      <span>94 SKUs</span><span class="sep">·</span>
+      <span>4 BOM models</span><span class="sep">·</span>
+      <span>30 work orders</span><span class="sep">·</span>
+      <span>1,836 movements</span>
+    </div>
   </div>
-  <h1 class="splash-title">WILSON TRAILERS</h1>
-  <div class="splash-tag">Inventory Intelligence System</div>
-  <div class="splash-divider"></div>
-  <div class="splash-meta">
-    <div class="row"><span>plant</span><span>Sioux City, IA</span></div>
-    <div class="row"><span>est.</span><span>1883</span></div>
-    <div class="row"><span>module</span><span>inventory-ai</span></div>
-    <div class="row"><span>build</span><span>v1.0.0</span></div>
-    <div class="row"><span>status</span><span class="ok">● synchronized</span></div>
-  </div>
-  <div class="splash-cta" @click.stop="enterApp(true)">Enter system →</div>
-  <div class="splash-progress">94 skus · 4 bom models · 30 work orders · 1,836 movements</div>
 </div>
 
 <!-- ============ TOUR ============ -->

@@ -40,30 +40,53 @@ async function api(path, opts={}) {
 function appRoot() {
   return {
     splash: true,
+    splashPct: 0,
+    splashStatus: 'INITIALIZING',
     tour: tourController(),
+    _splashTimer: null,
+    _splashSteps: [
+      { at: 0,    label: 'INITIALIZING SYSTEM' },
+      { at: 12,   label: 'CONNECTING TO PLANT' },
+      { at: 28,   label: 'LOADING SKU REGISTRY' },
+      { at: 45,   label: 'SYNCING BILL OF MATERIALS' },
+      { at: 62,   label: 'INDEXING STOCK MOVEMENTS' },
+      { at: 78,   label: 'CALIBRATING AI MODULE' },
+      { at: 92,   label: 'READY' },
+    ],
     async boot() {
-      // Auto-dismiss splash after 3.4s, or earlier on click via enterApp
       const seen = localStorage.getItem('wt_splash_seen');
-      if (seen) {
-        // returning user: brief splash (1.6s)
-        setTimeout(() => this.enterApp(false), 1600);
-      } else {
-        setTimeout(() => this.enterApp(false), 3400);
-      }
+      const total = seen ? 2400 : 4800;  // ms total splash duration
+      const start = performance.now();
+
+      const tick = () => {
+        const elapsed = performance.now() - start;
+        const pct = Math.min(100, Math.round((elapsed / total) * 100));
+        this.splashPct = pct;
+        const step = this._splashSteps.slice().reverse().find(s => pct >= s.at);
+        if (step) this.splashStatus = step.label;
+        if (pct < 100 && this.splash) {
+          this._splashTimer = requestAnimationFrame(tick);
+        } else {
+          setTimeout(() => this.enterApp(false), 250);
+        }
+      };
+      requestAnimationFrame(tick);
     },
     enterApp(byClick) {
       if (!this.splash) return;
-      const splashEl = document.querySelector('.splash');
-      if (splashEl) splashEl.classList.add('fade');
-      setTimeout(() => {
-        this.splash = false;
-        const seen = localStorage.getItem('wt_splash_seen');
-        if (!seen) {
-          localStorage.setItem('wt_splash_seen', '1');
-          // Start tour after splash on first visit
-          setTimeout(() => this.tour.start(), 500);
-        }
-      }, byClick ? 200 : 600);
+      if (this._splashTimer) cancelAnimationFrame(this._splashTimer);
+      // Fade-out class is applied via :class binding when splash flips false
+      this.splash = false;
+      const seen = localStorage.getItem('wt_splash_seen');
+      if (!seen) {
+        localStorage.setItem('wt_splash_seen', '1');
+        // Wait for splash fade-out (.55s) + small buffer
+        setTimeout(() => this.tour.start(), 700);
+      }
+    },
+    resetTour() {
+      localStorage.removeItem('wt_splash_seen');
+      location.reload();
     },
   };
 }
