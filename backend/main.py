@@ -215,6 +215,59 @@ def withdraw_stock(pid: int, payload: schemas.WithdrawRequest, db: Session = Dep
     }
 
 
+@app.get("/api/products/{pid}/history")
+def product_history(pid: int, limit: int = 50, db: Session = Depends(get_db)):
+    p = db.query(models.Product).get(pid)
+    if not p:
+        raise HTTPException(404, "Product not found")
+    moves = (
+        db.query(models.StockMovement)
+        .filter(models.StockMovement.product_id == pid)
+        .order_by(models.StockMovement.date.desc())
+        .limit(limit)
+        .all()
+    )
+    # Aggregate stats
+    in_qty = sum(m.quantity for m in moves if m.movement_type == "IN")
+    out_qty = sum(m.quantity for m in moves if m.movement_type == "OUT")
+    last_in = next((m for m in moves if m.movement_type == "IN"), None)
+    last_out = next((m for m in moves if m.movement_type == "OUT"), None)
+    # 30-day consumption rate
+    cutoff = datetime.utcnow() - timedelta(days=30)
+    recent_out = sum(
+        m.quantity for m in moves
+        if m.movement_type == "OUT" and m.date >= cutoff
+    )
+    daily_rate = recent_out / 30.0 if recent_out else 0
+    days_left = (p.stock / daily_rate) if daily_rate > 0 else None
+    return {
+        "product": {
+            "id": p.id, "sku": p.sku, "name": p.name, "category": p.category,
+            "trailer_line": p.trailer_line, "unit_cost": p.unit_cost,
+            "stock": p.stock, "min_stock": p.min_stock,
+            "location": p.location, "supplier": p.supplier,
+            "value": round(p.stock * p.unit_cost, 2),
+        },
+        "stats": {
+            "total_in": in_qty,
+            "total_out": out_qty,
+            "daily_rate": round(daily_rate, 2),
+            "days_left": round(days_left, 1) if days_left else None,
+            "last_in_date": last_in.date.isoformat() if last_in else None,
+            "last_out_date": last_out.date.isoformat() if last_out else None,
+        },
+        "movements": [
+            {
+                "id": m.id, "date": m.date.isoformat(),
+                "movement_type": m.movement_type,
+                "quantity": m.quantity,
+                "reason": m.reason, "reference": m.reference,
+            }
+            for m in moves
+        ],
+    }
+
+
 @app.get("/api/movements/recent", response_model=List[schemas.RecentMovementOut])
 def recent_movements(limit: int = 12, db: Session = Depends(get_db)):
     rows = (

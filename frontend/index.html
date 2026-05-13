@@ -6,9 +6,9 @@
 <title>Wilson Trailers // Inventory AI</title>
 <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/assets/styles.css?v=20260513e">
+<link rel="stylesheet" href="/static/assets/styles.css?v=20260513f">
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
-<script src="/static/assets/app.js?v=20260513e"></script>
+<script src="/static/assets/app.js?v=20260513f"></script>
 </head>
 <body x-data="appRoot()" x-init="boot()">
 
@@ -25,6 +25,115 @@
       <div class="progress"></div>
     </div>
   </template>
+</div>
+
+<!-- ============ SKU DETAIL MODAL ============ -->
+<div class="modal-bg" x-show="skuDetail.open" @click.self="skuDetail.close()" @keydown.escape.window="skuDetail.close()" x-cloak>
+  <div class="detail-modal" x-show="skuDetail.open" x-transition>
+    <div class="detail-head">
+      <div>
+        <div class="sku-large" x-text="skuDetail.data?.product?.sku"></div>
+        <h2 x-text="skuDetail.data?.product?.name"></h2>
+        <div class="meta">
+          <span x-text="skuDetail.data?.product?.category"></span>
+          <span x-show="skuDetail.data?.product?.trailer_line"> · <span x-text="skuDetail.data?.product?.trailer_line"></span></span>
+          <span> · Supplier: <span x-text="skuDetail.data?.product?.supplier || '—'"></span></span>
+          <span> · Location: <span x-text="skuDetail.data?.product?.location || '—'"></span></span>
+        </div>
+      </div>
+      <button class="close" @click="skuDetail.close()">×</button>
+    </div>
+
+    <div class="detail-stats" x-show="skuDetail.data">
+      <div class="stat" :class="{'danger': skuDetail.data?.product?.stock <= skuDetail.data?.product?.min_stock}">
+        <div class="lbl">Current stock</div>
+        <div class="val" x-text="skuDetail.data?.product?.stock + 'u'"></div>
+        <div class="sub">min: <span x-text="skuDetail.data?.product?.min_stock"></span></div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Unit cost</div>
+        <div class="val" x-text="fmtMoney(skuDetail.data?.product?.unit_cost || 0)"></div>
+        <div class="sub">value: <span x-text="fmtMoney(skuDetail.data?.product?.value || 0)"></span></div>
+      </div>
+      <div class="stat">
+        <div class="lbl">30d consumption</div>
+        <div class="val" x-text="(skuDetail.data?.stats?.daily_rate || 0).toFixed(1) + '/d'"></div>
+        <div class="sub">total out: <span x-text="skuDetail.data?.stats?.total_out"></span>u</div>
+      </div>
+      <div class="stat" :class="skuDetail.daysFlagClass()">
+        <div class="lbl">Days remaining</div>
+        <div class="val" x-text="skuDetail.daysLeftText()"></div>
+        <div class="sub" x-text="skuDetail.daysSubText()"></div>
+      </div>
+    </div>
+
+    <div class="detail-body">
+      <div class="label-line">
+        <span class="ttl">Movement history</span>
+        <span class="ttl" x-text="(skuDetail.data?.movements?.length || 0) + ' events'"></span>
+      </div>
+      <table class="tbl">
+        <thead><tr><th>When</th><th>Type</th><th>Qty</th><th>Reason / Reference</th></tr></thead>
+        <tbody>
+          <template x-for="m in (skuDetail.data?.movements || [])" :key="m.id">
+            <tr>
+              <td><span class="num" x-text="fmtDateTime(m.date)"></span></td>
+              <td><span class="tag" :class="m.movement_type==='IN' ? 'tag-in' : (m.movement_type==='OUT' ? 'tag-out' : 'tag-adj')" x-text="m.movement_type"></span></td>
+              <td><span class="num-strong" x-text="m.quantity"></span></td>
+              <td><span x-text="m.reason || '—'"></span></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+      <div x-show="!skuDetail.data?.movements?.length" class="empty">No movements recorded</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ COMMAND PALETTE (Cmd+K / Ctrl+K) ============ -->
+<div class="cmd-backdrop" x-show="cmd.open"
+     @click.self="cmd.close()"
+     @keydown.escape.window="cmd.close()"
+     @keydown.arrow-down.prevent="cmd.move(1)"
+     @keydown.arrow-up.prevent="cmd.move(-1)"
+     @keydown.enter.prevent="cmd.execute()"
+     x-cloak>
+  <div class="cmd-panel" @click.stop>
+    <input class="cmd-input"
+           type="text"
+           placeholder="Search commands, SKUs, vendors…"
+           x-model="cmd.query"
+           @input="cmd.filter()"
+           x-ref="cmdInput">
+    <div class="cmd-results">
+      <template x-for="(r,i) in cmd.results" :key="i">
+        <div class="cmd-result" :class="{active: i === cmd.idx}"
+             @click="cmd.idx = i; cmd.execute()"
+             @mouseenter="cmd.idx = i">
+          <span class="badge" x-text="r.badge"></span>
+          <span class="lbl" x-text="r.label"></span>
+          <span class="sub" x-text="r.sub || ''"></span>
+        </div>
+      </template>
+      <div x-show="cmd.results.length === 0" class="empty" style="padding:24px;">No matches</div>
+    </div>
+    <div class="cmd-foot">
+      <span><kbd>↑↓</kbd> navigate · <kbd>enter</kbd> select · <kbd>esc</kbd> close</span>
+      <span x-text="cmd.results.length + ' results'"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CUSTOM CONFIRM ============ -->
+<div class="modal-bg" x-show="confirmDialog.open" @click.self="confirmDialog.cancel()" @keydown.escape.window="confirmDialog.cancel()" x-cloak>
+  <div class="confirm-modal">
+    <h4 x-text="confirmDialog.title"></h4>
+    <p x-text="confirmDialog.message"></p>
+    <div class="ctrl">
+      <button class="btn" @click="confirmDialog.cancel()" x-text="confirmDialog.cancelLabel"></button>
+      <button class="btn btn-primary" @click="confirmDialog.confirm()" x-text="confirmDialog.confirmLabel"></button>
+    </div>
+  </div>
 </div>
 
 <!-- ============ SPLASH SCREEN (visible by default, faded out via class) ============ -->
@@ -332,18 +441,25 @@
 
       <div class="content" style="padding-top:0;">
         <div class="panel standalone" style="padding:0;">
-          <table class="tbl">
+          <table class="tbl sortable">
             <thead>
               <tr>
-                <th>SKU</th><th>Item</th><th>Category</th><th>Line</th>
-                <th>Stock</th><th>Cost</th><th>Value</th><th>Location</th><th></th>
+                <th @click="sortBy('sku')"      :class="sortClass('sku')">SKU<span class="sort-arr" x-text="sortIcon('sku')"></span></th>
+                <th @click="sortBy('name')"     :class="sortClass('name')">Item<span class="sort-arr" x-text="sortIcon('name')"></span></th>
+                <th @click="sortBy('category')" :class="sortClass('category')">Category<span class="sort-arr" x-text="sortIcon('category')"></span></th>
+                <th @click="sortBy('trailer_line')" :class="sortClass('trailer_line')">Line<span class="sort-arr" x-text="sortIcon('trailer_line')"></span></th>
+                <th @click="sortBy('stock')"    :class="sortClass('stock')">Stock<span class="sort-arr" x-text="sortIcon('stock')"></span></th>
+                <th @click="sortBy('unit_cost')":class="sortClass('unit_cost')">Cost<span class="sort-arr" x-text="sortIcon('unit_cost')"></span></th>
+                <th @click="sortBy('value')"    :class="sortClass('value')">Value<span class="sort-arr" x-text="sortIcon('value')"></span></th>
+                <th @click="sortBy('location')" :class="sortClass('location')">Location<span class="sort-arr" x-text="sortIcon('location')"></span></th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               <template x-for="p in items" :key="p.id">
                 <tr>
-                  <td><span class="sku" x-text="p.sku"></span></td>
-                  <td x-text="p.name"></td>
+                  <td><span class="sku" style="cursor:pointer;" @click="showDetail(p.id)" x-text="p.sku" title="View full history"></span></td>
+                  <td style="cursor:pointer;" @click="showDetail(p.id)" x-text="p.name"></td>
                   <td><span class="num" x-text="p.category"></span></td>
                   <td><span class="tag tag-line" x-show="p.trailer_line" x-text="p.trailer_line"></span></td>
                   <td><span class="tag" :class="isLow(p) ? 'tag-low' : 'tag-ok'" x-text="p.stock + ' / ' + p.min_stock"></span></td>

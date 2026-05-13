@@ -129,13 +129,16 @@ async function api(path, opts={}) {
   return r.json();
 }
 
-// ====================== App Root (splash + tour) ======================
+// ====================== App Root (splash + tour + cmd palette + confirm) ======================
 function appRoot() {
   return {
     splash: true,
     splashPct: 0,
     splashStatus: 'INITIALIZING',
     tour: tourController(),
+    skuDetail: skuDetailController(this),
+    cmd: cmdPalette(this),
+    confirmDialog: confirmController(),
     _splashTimer: null,
     _splashSteps: [
       { at: 0,    label: 'INITIALIZING SYSTEM' },
@@ -146,9 +149,39 @@ function appRoot() {
       { at: 78,   label: 'CALIBRATING AI MODULE' },
       { at: 92,   label: 'READY' },
     ],
+    setView(v) {
+      const appEl = document.querySelector('.app');
+      if (appEl && appEl._x_dataStack) {
+        appEl._x_dataStack[0].view = v;
+      }
+    },
     async boot() {
       // Lock body scroll while splash is up
       document.body.classList.add('splash-locked');
+
+      // Global keyboard shortcuts
+      window.addEventListener('keydown', (e) => {
+        // Cmd+K / Ctrl+K -> command palette
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          if (!this.splash) this.cmd.toggle();
+          return;
+        }
+        // Ignore if typing in an input
+        if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+        if (this.splash || this.cmd.open) return;
+
+        const key = e.key.toLowerCase();
+        // Single-key shortcuts (no modifiers)
+        if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+          const map = { 'o': 'dashboard', 'i': 'inventory', 'c': 'purchases',
+                        'x': 'expenses', 'p': 'production', 'h': 'history', 'a': 'assistant' };
+          if (map[key]) {
+            e.preventDefault();
+            this.setView(map[key]);
+          }
+        }
+      });
 
       const total = 5200;
       const start = performance.now();
@@ -231,6 +264,163 @@ function tourController() {
       return `top:${top}px;left:${left}px;`;
     },
   };
+}
+
+// ====================== SKU Detail Modal ======================
+function skuDetailController() {
+  return {
+    open: false,
+    data: null,
+    async show(productId) {
+      this.open = true;
+      this.data = null;
+      try {
+        this.data = await api(`/api/products/${productId}/history`);
+      } catch (e) {
+        toastError('Failed to load SKU details', e.message);
+        this.open = false;
+      }
+    },
+    close() { this.open = false; this.data = null; },
+    daysLeftText() {
+      const d = this.data?.stats?.days_left;
+      if (d === null || d === undefined) return '—';
+      if (d > 999) return '∞';
+      return Math.round(d) + 'd';
+    },
+    daysSubText() {
+      const d = this.data?.stats?.days_left;
+      if (!d) return 'no consumption';
+      if (d < 14) return 'CRITICAL';
+      if (d < 30) return 'reorder soon';
+      return 'healthy';
+    },
+    daysFlagClass() {
+      const d = this.data?.stats?.days_left;
+      if (!d) return '';
+      if (d < 14) return 'danger';
+      if (d < 30) return 'warn';
+      return 'good';
+    },
+  };
+}
+
+// ====================== Command Palette ======================
+function cmdPalette(rootRef) {
+  return {
+    open: false,
+    query: '',
+    idx: 0,
+    results: [],
+    _allProducts: [],
+    _staticCommands: [
+      { kind:'nav', badge:'NAV', label:'Overview', view:'dashboard', sub:'press O' },
+      { kind:'nav', badge:'NAV', label:'Inventory', view:'inventory', sub:'press I' },
+      { kind:'nav', badge:'NAV', label:'Purchases', view:'purchases', sub:'press C' },
+      { kind:'nav', badge:'NAV', label:'Expenses', view:'expenses', sub:'press X' },
+      { kind:'nav', badge:'NAV', label:'Production', view:'production', sub:'press P' },
+      { kind:'nav', badge:'NAV', label:'Activity Log', view:'history', sub:'press H' },
+      { kind:'nav', badge:'NAV', label:'AI Assistant', view:'assistant', sub:'press A' },
+      { kind:'ai',  badge:'AI',  label:'Ask: how many trailers can I build?', query:'how many trailers can I build' },
+      { kind:'ai',  badge:'AI',  label:'Ask: which SKUs run out first?', query:'which SKUs run out first' },
+      { kind:'ai',  badge:'AI',  label:'Ask: summary of operations', query:'summary' },
+      { kind:'ai',  badge:'AI',  label:'Ask: expenses by category', query:'expenses by category' },
+    ],
+    async toggle() {
+      this.open = !this.open;
+      if (this.open) {
+        this.query = ''; this.idx = 0;
+        if (!this._allProducts.length) {
+          try { this._allProducts = await api('/api/products'); } catch (e) {}
+        }
+        this.filter();
+        this.$nextTick(() => { try { document.querySelector('.cmd-input')?.focus(); } catch(e){} });
+      }
+    },
+    close() { this.open = false; this.idx = 0; },
+    filter() {
+      const q = this.query.toLowerCase().trim();
+      let res = [];
+      if (!q) {
+        res = this._staticCommands.slice();
+      } else {
+        res = this._staticCommands.filter(c => c.label.toLowerCase().includes(q));
+        const skus = this._allProducts.filter(p =>
+          p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)
+        ).slice(0, 10);
+        for (const p of skus) {
+          res.push({ kind:'sku', badge:'SKU', label: p.sku + ' · ' + p.name, sub: `stock ${p.stock} · $${p.unit_cost}`, productId: p.id });
+        }
+      }
+      this.results = res;
+      this.idx = 0;
+    },
+    move(delta) {
+      if (!this.results.length) return;
+      this.idx = (this.idx + delta + this.results.length) % this.results.length;
+      this.$nextTick(() => {
+        const el = document.querySelectorAll('.cmd-result')[this.idx];
+        el?.scrollIntoView({ block: 'nearest' });
+      });
+    },
+    execute() {
+      const r = this.results[this.idx];
+      if (!r) return;
+      this.close();
+      if (r.kind === 'nav') {
+        rootRef.setView ? rootRef.setView(r.view) : (document.querySelector('.app')._x_dataStack[0].view = r.view);
+      } else if (r.kind === 'sku') {
+        rootRef.skuDetail.show(r.productId);
+      } else if (r.kind === 'ai') {
+        const root = document.querySelector('.app')._x_dataStack[0];
+        if (root) root.view = 'assistant';
+        setTimeout(() => {
+          const section = document.querySelector('[x-data^="assistantApp"]');
+          if (section && section._x_dataStack) {
+            section._x_dataStack[0].input = r.query;
+            section._x_dataStack[0].send();
+          }
+        }, 200);
+      }
+    },
+  };
+}
+
+// ====================== Custom Confirm Dialog ======================
+function confirmController() {
+  return {
+    open: false,
+    title: '',
+    message: '',
+    confirmLabel: 'Confirm',
+    cancelLabel: 'Cancel',
+    _resolve: null,
+    ask(opts) {
+      this.title = opts.title || 'Confirm';
+      this.message = opts.message || 'Are you sure?';
+      this.confirmLabel = opts.confirmLabel || 'Confirm';
+      this.cancelLabel = opts.cancelLabel || 'Cancel';
+      this.open = true;
+      return new Promise(res => { this._resolve = res; });
+    },
+    confirm() {
+      this.open = false;
+      if (this._resolve) this._resolve(true);
+      this._resolve = null;
+    },
+    cancel() {
+      this.open = false;
+      if (this._resolve) this._resolve(false);
+      this._resolve = null;
+    },
+  };
+}
+
+// Global helper
+function askConfirm(opts) {
+  const body = document.body._x_dataStack?.[0];
+  if (!body || !body.confirmDialog) return Promise.resolve(window.confirm(opts.message));
+  return body.confirmDialog.ask(opts);
 }
 
 // ====================== SVG Chart Renderers ======================
@@ -354,6 +544,8 @@ function inventoryApp() {
     withdrawForm: { quantity: 1, operator: '', reason: '', notes: '' },
     operatorPresets: ['Tom Henderson','Mike Schultz','Carlos Reyes','Dave Anderson','Sarah Klein','Jeremy Cole'],
     toast: null,
+    sortKey: '',
+    sortDir: 1,
     async init() {
       try {
         this.categories = await api('/api/meta/categories');
@@ -362,6 +554,27 @@ function inventoryApp() {
       try {
         this.movements = await api('/api/movements/recent?limit=8');
       } catch (e) { this.movements = []; }
+    },
+    sortBy(key) {
+      if (this.sortKey === key) this.sortDir *= -1;
+      else { this.sortKey = key; this.sortDir = 1; }
+      const dir = this.sortDir;
+      this.items.sort((a, b) => {
+        let va = a[key], vb = b[key];
+        if (key === 'value') { va = a.stock * a.unit_cost; vb = b.stock * b.unit_cost; }
+        if (va == null) va = '';
+        if (vb == null) vb = '';
+        if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+        return String(va).localeCompare(String(vb)) * dir;
+      });
+    },
+    sortIcon(key) {
+      if (this.sortKey !== key) return '↕';
+      return this.sortDir > 0 ? '↑' : '↓';
+    },
+    sortClass(key) {
+      if (this.sortKey !== key) return '';
+      return this.sortDir > 0 ? 'sort-asc' : 'sort-desc';
     },
     emptyForm() { return blank(); },
     async load() {
@@ -385,9 +598,19 @@ function inventoryApp() {
       } catch (e) { alert(e.message); }
     },
     async remove(id) {
-      if (!confirm('Delete this SKU?')) return;
+      const ok = await askConfirm({
+        title: 'Delete SKU',
+        message: 'This will permanently remove the SKU from the registry. This action cannot be undone.',
+        confirmLabel: 'Delete', cancelLabel: 'Cancel',
+      });
+      if (!ok) return;
       await api(`/api/products/${id}`, { method:'DELETE' });
+      toastSuccess('SKU deleted', 'Removed from registry');
       await this.load();
+    },
+    showDetail(id) {
+      const root = document.body._x_dataStack?.[0];
+      if (root && root.skuDetail) root.skuDetail.show(id);
     },
     openWithdraw(p) {
       this.withdrawTarget = p;
