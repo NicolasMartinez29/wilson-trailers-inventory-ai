@@ -1,6 +1,9 @@
 // Wilson Trailers — Inventory AI frontend
 const API = '';
 
+/** Access the body-level appRoot() data from anywhere. */
+window.app = () => document.body._x_dataStack?.[0];
+
 // ====================== Global utilities ======================
 
 /** Count-up animation: animates element textContent from current to target. */
@@ -155,7 +158,45 @@ function appRoot() {
         appEl._x_dataStack[0].view = v;
       }
     },
+    // Notifications panel state
+    notifs: {
+      open: false,
+      items: [],
+      unread: 0,
+    },
+    async loadNotifs() {
+      try {
+        const low = await api('/api/products?low_only=true');
+        const items = low.map(p => ({
+          kind: 'alert',
+          title: `${p.sku} below minimum`,
+          subtitle: `${p.name}`,
+          value: `${p.stock}u / min ${p.min_stock}`,
+          productId: p.id,
+        }));
+        // Most recent purchases
+        const purchases = await api('/api/purchases?limit=3');
+        for (const p of purchases) {
+          items.push({
+            kind: 'po',
+            title: `${p.po_number}`,
+            subtitle: `${p.vendor}`,
+            value: fmtMoney(p.total),
+            date: p.date,
+          });
+        }
+        this.notifs.items = items;
+        this.notifs.unread = low.length;
+      } catch (e) {}
+    },
+    toggleNotifs() {
+      this.notifs.open = !this.notifs.open;
+      if (this.notifs.open) this.notifs.unread = 0;
+    },
     async boot() {
+      // Initial notifications load + poll every 45s
+      this.loadNotifs();
+      setInterval(() => this.loadNotifs(), 45000);
       // Lock body scroll while splash is up
       document.body.classList.add('splash-locked');
 
@@ -536,11 +577,37 @@ function dashboardApp() {
     lowStock: [],
     recentPurchases: [],
     recentMovements: [],
+    _poll: null,
+    _lastMovementId: 0,
+    pollMs: 30000,
     async init() {
-      this.kpi = await api('/api/dashboard');
-      this.lowStock = await api('/api/products?low_only=true');
-      this.recentPurchases = await api('/api/purchases?limit=5');
-      this.recentMovements = await api('/api/movements/recent?limit=8');
+      await this.refresh(true);
+      this._poll = setInterval(() => this.refresh(false), this.pollMs);
+    },
+    destroy() { if (this._poll) clearInterval(this._poll); },
+    async refresh(initial) {
+      try {
+        const [kpi, lowStock, recentPurchases, recentMovements] = await Promise.all([
+          api('/api/dashboard'),
+          api('/api/products?low_only=true'),
+          api('/api/purchases?limit=5'),
+          api('/api/movements/recent?limit=8'),
+        ]);
+        // Diff detection on subsequent refreshes
+        if (!initial && recentMovements.length && this._lastMovementId) {
+          const newest = recentMovements[0];
+          if (newest.id > this._lastMovementId) {
+            toastInfo('New movement detected', `${newest.sku} · ${newest.movement_type} · ${newest.quantity}u`);
+          }
+        }
+        if (recentMovements.length) this._lastMovementId = Math.max(this._lastMovementId, recentMovements[0].id);
+        this.kpi = kpi;
+        this.lowStock = lowStock;
+        this.recentPurchases = recentPurchases;
+        this.recentMovements = recentMovements;
+      } catch (e) {
+        if (initial) toastError('Failed to load dashboard', e.message);
+      }
     },
     trendChartSVG() { return this.kpi ? buildTrendSVG(this.kpi.monthly_trend) : ''; },
     categoryChartSVG() { return this.kpi ? buildDonutSVG(this.kpi.top_categories) : ''; },
@@ -833,11 +900,12 @@ function historyApp() {
 
 function assistantApp() {
   return {
-    messages: [
+    messages: JSON.parse(localStorage.getItem('wt_chat') || 'null') || [
       { role:'bot', text: 'Wilson Trailers AI is online.\n\nAsk anything about inventory, purchases, expenses, production capacity, or SKU runout forecasts in plain English.' }
     ],
     input: '',
     loading: false,
+    showSuggestions: false,
     suggestions: [
       'summary',
       'how many trailers can I build',
@@ -847,13 +915,27 @@ function assistantApp() {
       'expenses by category',
       'top SKUs by value',
     ],
+    filteredSuggestions() {
+      const q = this.input.toLowerCase().trim();
+      if (!q) return this.suggestions;
+      return this.suggestions.filter(s => s.toLowerCase().includes(q));
+    },
+    clearHistory() {
+      this.messages = [{ role:'bot', text: 'Conversation cleared. How can I help?' }];
+      localStorage.removeItem('wt_chat');
+    },
+    _save() {
+      try { localStorage.setItem('wt_chat', JSON.stringify(this.messages.slice(-30))); } catch(e){}
+    },
     async send(q) {
       const question = (q || this.input || '').trim();
       if (!question || this.loading) return;
       this.messages.push({ role: 'user', text: question });
       this.input = '';
+      this.showSuggestions = false;
       this.loading = true;
       this.scroll();
+      this._save();
       try {
         const res = await api('/api/ai/ask', { method:'POST', body: JSON.stringify({ question }) });
         this.messages.push({ role: 'bot', text: res.answer });
@@ -862,6 +944,7 @@ function assistantApp() {
       } finally {
         this.loading = false;
         this.scroll();
+        this._save();
       }
     },
     scroll() {

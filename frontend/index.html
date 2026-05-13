@@ -6,9 +6,9 @@
 <title>Wilson Trailers // Inventory AI</title>
 <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/assets/styles.css?v=20260513g">
+<link rel="stylesheet" href="/static/assets/styles.css?v=20260513h">
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
-<script src="/static/assets/app.js?v=20260513g"></script>
+<script src="/static/assets/app.js?v=20260513h"></script>
 </head>
 <body x-data="appRoot()" x-init="boot()">
 
@@ -274,8 +274,32 @@
           <h1><span class="crumb">wilson</span><span class="sep">/</span><span>overview</span></h1>
           <div class="sub">Real-time operational telemetry · Sioux City plant</div>
         </div>
-        <div class="actions">
+        <div class="actions" style="position:relative;">
           <span class="status-dot"><span class="d"></span> LIVE</span>
+          <div style="position:relative;">
+            <button class="notif-bell" @click="app().toggleNotifs()" :class="{'has-unread': app().notifs.unread > 0}">
+              <svg viewBox="0 0 24 24"><path d="M12 2a6 6 0 00-6 6v4l-2 4h16l-2-4V8a6 6 0 00-6-6zm0 20a3 3 0 003-3H9a3 3 0 003 3z"/></svg>
+              <span class="badge" x-show="app().notifs.unread > 0" x-text="app().notifs.unread"></span>
+            </button>
+            <div class="notif-panel" x-show="app().notifs.open" @click.outside="app().notifs.open = false" x-cloak>
+              <div class="head">
+                <h4>Notifications</h4>
+                <span class="chat-clear" @click="app().loadNotifs()">refresh</span>
+              </div>
+              <div class="body">
+                <template x-for="(n,i) in app().notifs.items" :key="i">
+                  <div class="notif-item" :class="n.kind">
+                    <div>
+                      <div class="title"><span class="kind-tag" x-text="n.kind === 'alert' ? 'LOW' : 'PO'"></span><span x-text="n.title"></span></div>
+                      <div class="sub" x-text="n.subtitle"></div>
+                    </div>
+                    <div class="value" x-text="n.value"></div>
+                  </div>
+                </template>
+                <div x-show="app().notifs.items.length === 0" class="notif-empty">No notifications</div>
+              </div>
+            </div>
+          </div>
           <button class="btn" @click="$root.view='assistant'">Query AI</button>
         </div>
       </div>
@@ -906,14 +930,27 @@
                 <div class="bubble"><span class="spinner"></span> &nbsp;processing query…</div>
               </div>
             </div>
-            <div>
-              <div class="suggested">
+            <div style="position:relative;">
+              <div class="suggested" style="align-items:center;">
                 <template x-for="s in suggestions" :key="s">
                   <span class="pill" @click="send(s)" x-text="s"></span>
                 </template>
+                <span class="chat-clear" @click="clearHistory()" x-show="messages.length > 1">clear history</span>
               </div>
+
+              <div class="ai-suggest-dropdown" x-show="showSuggestions && filteredSuggestions().length > 0" x-cloak @click.outside="showSuggestions = false">
+                <template x-for="s in filteredSuggestions()" :key="s">
+                  <div class="ai-suggest-item" @click="send(s)" x-text="s"></div>
+                </template>
+              </div>
+
               <div class="chat-input">
-                <input class="input" placeholder="ask anything about inventory, purchases, expenses…" x-model="input" @keydown.enter="send()">
+                <input class="input"
+                       placeholder="ask anything about inventory, purchases, expenses…"
+                       x-model="input"
+                       @focus="showSuggestions = true"
+                       @input="showSuggestions = true"
+                       @keydown.enter="send()">
                 <button class="btn btn-primary" @click="send()" :disabled="loading || !input.trim()">Send</button>
               </div>
             </div>

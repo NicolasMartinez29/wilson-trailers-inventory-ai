@@ -1210,6 +1210,110 @@ table.tbl.sortable th.sort-desc .sort-arr {
 }
 .sparkline path { fill: rgba(227,6,19,.12); stroke: var(--red); stroke-width: 1.2; }
 
+/* ===== Notifications bell + panel ===== */
+.notif-bell {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 0;
+  width: 36px; height: 32px;
+  border: 1px solid var(--line-2);
+  background: var(--elevated);
+  cursor: pointer;
+  justify-content: center;
+  transition: all .15s ease;
+}
+.notif-bell:hover { border-color: var(--red); }
+.notif-bell svg { width: 14px; height: 14px; stroke: var(--muted); fill: none; stroke-width: 1.6; }
+.notif-bell:hover svg { stroke: var(--text); }
+.notif-bell .badge {
+  position: absolute; top: -6px; right: -6px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  background: var(--red); color: #fff;
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  animation: badgePop .25s cubic-bezier(.2,.8,.2,1);
+  box-shadow: 0 0 8px rgba(227,6,19,.6);
+}
+@keyframes badgePop { from { transform: scale(0); } }
+
+.notif-panel {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: 360px; max-height: 420px;
+  background: var(--surface); border: 1px solid var(--line-2);
+  z-index: 500; overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 16px 48px rgba(0,0,0,.55);
+  animation: notifIn .22s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes notifIn { from { opacity:0; transform: translateY(-8px); } }
+.notif-panel .head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.notif-panel .head h4 {
+  margin: 0; font-family: var(--mono); font-size: 11px;
+  color: var(--text); text-transform: uppercase; letter-spacing: .12em;
+}
+.notif-panel .body { flex: 1; overflow-y: auto; }
+.notif-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  display: grid; grid-template-columns: 1fr auto; gap: 8px;
+  cursor: pointer;
+  transition: background .12s ease;
+}
+.notif-item:hover { background: var(--hover); }
+.notif-item:last-child { border-bottom: none; }
+.notif-item .title { font-size: 13px; color: var(--text); margin-bottom: 2px; }
+.notif-item .sub { font-size: 11px; color: var(--dim); font-family: var(--mono); }
+.notif-item .value { font-family: var(--mono); font-size: 12px; color: var(--red); text-align: right; align-self: center; }
+.notif-item.po .value { color: var(--green); }
+.notif-item .kind-tag {
+  display: inline-block;
+  font-family: var(--mono); font-size: 9px;
+  padding: 1px 5px;
+  border: 1px solid currentColor;
+  margin-right: 8px;
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.notif-item.alert .kind-tag { color: var(--red); }
+.notif-item.po .kind-tag { color: var(--green); }
+.notif-empty {
+  padding: 40px 20px; text-align: center;
+  color: var(--dim); font-family: var(--mono); font-size: 12px;
+}
+
+/* AI suggestions inline */
+.ai-suggest-dropdown {
+  position: absolute; bottom: calc(100% + 4px); left: 16px; right: 16px;
+  background: var(--surface); border: 1px solid var(--line-2);
+  max-height: 200px; overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 -8px 24px rgba(0,0,0,.4);
+}
+.ai-suggest-item {
+  padding: 8px 14px;
+  font-family: 'Inter', sans-serif; font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+  transition: all .12s ease;
+}
+.ai-suggest-item:last-child { border-bottom: none; }
+.ai-suggest-item:hover { background: var(--hover); color: var(--text); border-left: 2px solid var(--red); }
+
+/* AI chat clear button */
+.chat-clear {
+  margin-left: auto;
+  font-family: var(--mono); font-size: 10px;
+  color: var(--dim); cursor: pointer;
+  padding: 4px 10px; border: 1px solid var(--line);
+  text-transform: uppercase; letter-spacing: .08em;
+  transition: all .12s ease;
+}
+.chat-clear:hover { color: var(--red); border-color: var(--red); }
+
 /* ===== Responsive ===== */
 @media (max-width: 1100px) {
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
