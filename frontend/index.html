@@ -6,9 +6,9 @@
 <title>Wilson Trailers // Inventory AI</title>
 <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/assets/styles.css?v=20260513c">
+<link rel="stylesheet" href="/static/assets/styles.css?v=20260513d">
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
-<script src="/static/assets/app.js?v=20260513c"></script>
+<script src="/static/assets/app.js?v=20260513d"></script>
 </head>
 <body x-data="appRoot()" x-init="boot()">
 
@@ -21,29 +21,33 @@
     <div class="splash-eyebrow">EST. 1883 · SIOUX CITY, IA</div>
 
     <div class="splash-logo">
-      <!-- Wilson-style W: bold bevelled silhouette with red flag accent -->
-      <svg viewBox="0 0 360 200" xmlns="http://www.w3.org/2000/svg" width="320" height="180" preserveAspectRatio="xMidYMid meet">
-        <!-- Red flag/banner sweeping behind W -->
-        <path class="wt-flag" d="M 30 30 Q 180 -20 330 30 L 330 60 Q 180 10 30 60 Z" />
-        <!-- Main W solid -->
+      <!-- Wilson-style W: clean bevelled silhouette with red banner -->
+      <svg viewBox="0 0 360 200" xmlns="http://www.w3.org/2000/svg"
+           width="320" height="180"
+           preserveAspectRatio="xMidYMid meet"
+           shape-rendering="geometricPrecision">
+        <!-- Red banner arched over the W -->
+        <path class="wt-flag"
+              d="M 40 22 Q 180 -10 320 22 L 320 50 Q 180 24 40 50 Z"
+              stroke-linejoin="round"/>
+        <!-- Main W solid: clean six-stroke geometry -->
         <path class="wt-W"
-              d="M 40 50
-                 L 90 170
-                 L 130 100
-                 L 170 170
-                 L 210 100
-                 L 250 170
-                 L 300 50
-                 L 270 50
-                 L 235 130
-                 L 195 60
-                 L 170 110
-                 L 145 60
-                 L 105 130
-                 L 70 50 Z"/>
-        <!-- Highlight bevel on W (subtle white inner) -->
-        <path class="wt-W-bevel"
-              d="M 90 170 L 130 100 L 170 170 L 210 100 L 250 170"/>
+              d="M 30 60
+                 L 80 60
+                 L 110 152
+                 L 142 88
+                 L 180 152
+                 L 218 88
+                 L 250 152
+                 L 280 60
+                 L 330 60
+                 L 260 180
+                 L 218 122
+                 L 180 184
+                 L 142 122
+                 L 100 180
+                 Z"
+              stroke-linejoin="round" stroke-linecap="round"/>
       </svg>
     </div>
 
@@ -73,6 +77,14 @@
       <span>30 work orders</span><span class="sep">·</span>
       <span>1,836 movements</span>
     </div>
+
+    <button class="splash-continue"
+            x-show="splashPct >= 100"
+            @click="endSplash()"
+            x-cloak>
+      <span class="continue-label">ENTER SYSTEM</span>
+      <span class="continue-arrow">→</span>
+    </button>
   </div>
 </div>
 

@@ -54,7 +54,9 @@ function appRoot() {
       { at: 92,   label: 'READY' },
     ],
     async boot() {
-      // Splash runs full duration every time. No skip, no click escape.
+      // Lock body scroll while splash is up
+      document.body.classList.add('splash-locked');
+
       const total = 5200;
       const start = performance.now();
 
@@ -66,19 +68,20 @@ function appRoot() {
         if (step) this.splashStatus = step.label;
         if (pct < 100) {
           this._splashTimer = requestAnimationFrame(tick);
-        } else {
-          setTimeout(() => this.endSplash(), 300);
         }
+        // When pct === 100 we STOP the loop. The user must click ENTER SYSTEM.
       };
       requestAnimationFrame(tick);
     },
     endSplash() {
       if (!this.splash) return;
       this.splash = false;
+      // Unlock scroll once fade-out animation completes
+      setTimeout(() => document.body.classList.remove('splash-locked'), 600);
       const seen = localStorage.getItem('wt_tour_seen');
       if (!seen) {
         localStorage.setItem('wt_tour_seen', '1');
-        setTimeout(() => this.tour.start(), 700);
+        setTimeout(() => this.tour.start(), 800);
       }
     },
     resetTour() {
