@@ -36,19 +36,176 @@ async function api(path, opts={}) {
   return r.json();
 }
 
-// Chart.js defaults — dark
-if (typeof Chart !== 'undefined') {
-  Chart.defaults.color = '#A1A1AA';
-  Chart.defaults.borderColor = '#23232B';
-  Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
-  Chart.defaults.font.size = 11;
+// ====================== App Root (splash + tour) ======================
+function appRoot() {
+  return {
+    splash: true,
+    tour: tourController(),
+    async boot() {
+      // Auto-dismiss splash after 3.4s, or earlier on click via enterApp
+      const seen = localStorage.getItem('wt_splash_seen');
+      if (seen) {
+        // returning user: brief splash (1.6s)
+        setTimeout(() => this.enterApp(false), 1600);
+      } else {
+        setTimeout(() => this.enterApp(false), 3400);
+      }
+    },
+    enterApp(byClick) {
+      if (!this.splash) return;
+      const splashEl = document.querySelector('.splash');
+      if (splashEl) splashEl.classList.add('fade');
+      setTimeout(() => {
+        this.splash = false;
+        const seen = localStorage.getItem('wt_splash_seen');
+        if (!seen) {
+          localStorage.setItem('wt_splash_seen', '1');
+          // Start tour after splash on first visit
+          setTimeout(() => this.tour.start(), 500);
+        }
+      }, byClick ? 200 : 600);
+    },
+  };
+}
+
+// ====================== Tour ======================
+function tourController() {
+  return {
+    active: false,
+    idx: 0,
+    steps: [
+      { target: '#tour-kpis', title: 'Real-time KPIs', body: 'Your plant at a glance: inventory value, MTD purchases, expenses, and active stock alerts. Numbers update automatically as movements happen.', placement: 'bottom' },
+      { target: '#tour-charts', title: 'Cashflow & inventory mix', body: 'Six months of purchases vs expenses, plus how your $12M of inventory is distributed across categories.', placement: 'top' },
+      { target: '#tour-nav-inv', title: 'Inventory', body: 'All 94 part SKUs with stock, cost, value, and location. Hit "withdraw" on any row to log who pulled what for which work order.', placement: 'right' },
+      { target: '#tour-nav-prod', title: 'Production — the magic', body: 'Pick a trailer model and hit Produce. The system decrements all 30-48 BoM parts automatically and creates a work order with material cost.', placement: 'right' },
+      { target: '#tour-nav-ai', title: 'AI Assistant', body: 'Ask in plain English: "how many trailers can I build?", "which SKUs run out first?", "expenses by category". Answers come from live data.', placement: 'right' },
+    ],
+    start() { this.idx = 0; this.active = true; this.highlight(); },
+    advance() {
+      this.unhighlight();
+      this.idx++;
+      if (this.idx >= this.steps.length) { this.active = false; return; }
+      this.highlight();
+    },
+    skip() { this.unhighlight(); this.active = false; },
+    highlight() {
+      const el = document.querySelector(this.steps[this.idx].target);
+      if (el) el.classList.add('tour-target');
+    },
+    unhighlight() {
+      document.querySelectorAll('.tour-target').forEach(el => el.classList.remove('tour-target'));
+    },
+    cardStyle() {
+      const step = this.steps[this.idx];
+      const el = document.querySelector(step.target);
+      if (!el) return 'top:40%;left:50%;transform:translate(-50%,-50%);';
+      const r = el.getBoundingClientRect();
+      const pad = 16, cardW = 360, cardH = 220;
+      let top, left;
+      if (step.placement === 'right') {
+        top = Math.max(20, Math.min(window.innerHeight - cardH - 20, r.top + r.height/2 - cardH/2));
+        left = Math.min(window.innerWidth - cardW - 20, r.right + pad);
+      } else if (step.placement === 'top') {
+        top = Math.max(20, r.top - cardH - pad);
+        left = Math.max(20, Math.min(window.innerWidth - cardW - 20, r.left + r.width/2 - cardW/2));
+      } else {
+        top = Math.min(window.innerHeight - cardH - 20, r.bottom + pad);
+        left = Math.max(20, Math.min(window.innerWidth - cardW - 20, r.left + r.width/2 - cardW/2));
+      }
+      return `top:${top}px;left:${left}px;`;
+    },
+  };
+}
+
+// ====================== SVG Chart Renderers ======================
+function buildTrendSVG(trend) {
+  if (!trend || !trend.length) return '<div class="empty">No data</div>';
+  const W = 720, H = 220, padL = 56, padR = 16, padT = 16, padB = 30;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const maxV = Math.max(...trend.flatMap(m => [m.purchases, m.expenses]), 1);
+
+  const xAt = (i) => padL + (i / (trend.length - 1 || 1)) * innerW;
+  const yAt = (v) => padT + innerH - (v / maxV) * innerH;
+
+  const buildPath = (key, kind) => {
+    const pts = trend.map((m, i) => `${xAt(i)},${yAt(m[key])}`);
+    const line = 'M ' + pts.join(' L ');
+    const area = `M ${xAt(0)},${padT + innerH} L ` + pts.join(' L ') + ` L ${xAt(trend.length-1)},${padT + innerH} Z`;
+    return `<path class="area-${kind}" d="${area}" />
+            <path class="line-${kind}" d="${line}" />`;
+  };
+
+  const points = (key, kind) => trend.map((m, i) =>
+    `<circle class="pt-${kind}" cx="${xAt(i)}" cy="${yAt(m[key])}" r="4"><title>${m.label}: $${m[key].toLocaleString()}</title></circle>`
+  ).join('');
+
+  // Y axis ticks (5 ticks)
+  let yTicks = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = (maxV * i / 4);
+    const y = yAt(v);
+    yTicks += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#1A1A1F" stroke-width="1"/>
+               <text class="axis-num" x="${padL - 8}" y="${y + 3}">$${(v/1000).toFixed(0)}k</text>`;
+  }
+
+  // X axis labels
+  const xLabels = trend.map((m, i) =>
+    `<text class="axis-label" x="${xAt(i)}" y="${H - padB + 18}" text-anchor="middle">${m.label.toLowerCase()}</text>`
+  ).join('');
+
+  return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">
+    <g class="grid">${yTicks}</g>
+    ${buildPath('expenses','expenses')}
+    ${buildPath('purchases','purchases')}
+    ${points('expenses','expenses')}
+    ${points('purchases','purchases')}
+    ${xLabels}
+  </svg>`;
+}
+
+function buildDonutSVG(categories) {
+  if (!categories || !categories.length) return '<div class="empty">No data</div>';
+  const top = categories.slice(0, 8);
+  const total = top.reduce((s, c) => s + c.value, 0);
+  const palette = ['#E30613','#F59E0B','#22C55E','#60A5FA','#A78BFA','#F472B6','#FB923C','#94A3B8'];
+  const r = 70, c = 100, circ = 2 * Math.PI * r;
+  let offset = 0;
+  const segs = top.map((cat, i) => {
+    const portion = total > 0 ? cat.value / total : 0;
+    const dash = portion * circ;
+    const el = `<circle cx="${c}" cy="${c}" r="${r}"
+                  stroke="${palette[i]}"
+                  stroke-dasharray="${dash} ${circ}"
+                  stroke-dashoffset="${-offset}"
+                  transform="rotate(-90 ${c} ${c})">
+                <title>${cat.category}: $${cat.value.toLocaleString()}</title>
+              </circle>`;
+    offset += dash;
+    return el;
+  }).join('');
+
+  const legend = top.map((cat, i) =>
+    `<div class="it">
+      <span class="sw" style="background:${palette[i]};"></span>
+      <span class="lbl">${cat.category}</span>
+      <span class="val">$${(cat.value/1000).toFixed(0)}k</span>
+    </div>`
+  ).join('');
+
+  return `<div class="donut-wrap">
+    <svg class="donut-svg" viewBox="0 0 200 200">
+      <circle cx="${c}" cy="${c}" r="${r}" stroke="#18181E" stroke-width="18" fill="none"/>
+      ${segs}
+      <text x="${c}" y="${c-4}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#71717A" letter-spacing=".15em">TOTAL VALUE</text>
+      <text x="${c}" y="${c+14}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="14" fill="#E4E4E7" font-weight="600">$${(total/1000000).toFixed(2)}M</text>
+    </svg>
+    <div class="donut-legend">${legend}</div>
+  </div>`;
 }
 
 function dashboardApp() {
   return {
     kpi: null,
-    chart: null,
-    catChart: null,
     lowStock: [],
     recentPurchases: [],
     recentMovements: [],
@@ -57,71 +214,10 @@ function dashboardApp() {
       this.lowStock = await api('/api/products?low_only=true');
       this.recentPurchases = await api('/api/purchases?limit=5');
       this.recentMovements = await api('/api/movements/recent?limit=8');
-      this.scheduleRender();
     },
-    scheduleRender(tries = 0) {
-      // Wait until <template x-if="kpi"> mounted the canvases AND they have dimensions
-      const a = document.getElementById('trendChart');
-      const b = document.getElementById('catChart');
-      if (!a || !b || a.clientWidth === 0 || b.clientWidth === 0) {
-        if (tries < 30) return setTimeout(() => this.scheduleRender(tries + 1), 80);
-        return;
-      }
-      this.renderCharts();
-    },
-    renderCharts() {
-      const ctx = document.getElementById('trendChart');
-      if (ctx && this.kpi) {
-        if (this.chart) this.chart.destroy();
-        this.chart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: this.kpi.monthly_trend.map(m => m.label.toLowerCase()),
-            datasets: [
-              { label: 'purchases', data: this.kpi.monthly_trend.map(m => m.purchases),
-                borderColor: '#E30613', backgroundColor: 'rgba(227,6,19,0.14)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor:'#E30613', pointBorderColor:'#E30613' },
-              { label: 'expenses', data: this.kpi.monthly_trend.map(m => m.expenses),
-                borderColor: '#CBD5E1', backgroundColor: 'rgba(203,213,225,0.08)', tension: .3, fill: true, borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor:'#CBD5E1', pointBorderColor:'#CBD5E1' },
-            ],
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: {
-              legend: { position:'bottom', labels:{boxWidth:8, boxHeight:8, font:{size:11, family:"'JetBrains Mono', monospace"}, color:'#A1A1AA'} },
-              tooltip: { backgroundColor:'#131318', borderColor:'#2D2D38', borderWidth:1, titleColor:'#E4E4E7', bodyColor:'#A1A1AA', titleFont:{family:"'JetBrains Mono'", size:11}, bodyFont:{family:"'JetBrains Mono'", size:11}, padding:10, cornerRadius:0 }
-            },
-            scales: {
-              y: { ticks: { callback: v => '$' + (v/1000).toFixed(0) + 'k', font:{family:"'JetBrains Mono', monospace", size:10} }, grid:{color:'#1A1A1F'}, border:{color:'#23232B'} },
-              x: { grid: { display: false }, border:{color:'#23232B'}, ticks:{font:{family:"'JetBrains Mono', monospace", size:10}} }
-            }
-          }
-        });
-      }
-      const cctx = document.getElementById('catChart');
-      if (cctx && this.kpi && this.kpi.top_categories.length) {
-        if (this.catChart) this.catChart.destroy();
-        this.catChart = new Chart(cctx, {
-          type: 'doughnut',
-          data: {
-            labels: this.kpi.top_categories.map(c => c.category),
-            datasets: [{
-              data: this.kpi.top_categories.map(c => c.value),
-              backgroundColor: ['#E30613','#F59E0B','#22C55E','#60A5FA','#A78BFA','#F472B6','#94A3B8','#FB923C','#34D399','#7A0309'],
-              borderColor: '#09090B',
-              borderWidth: 2,
-              hoverOffset: 8,
-            }]
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false, cutout: '65%',
-            plugins: {
-              legend: { position: 'bottom', labels:{boxWidth:8, boxHeight:8, font:{size:10}, color:'#A1A1AA', padding:8} },
-              tooltip: { backgroundColor:'#131318', borderColor:'#2D2D38', borderWidth:1, titleColor:'#E4E4E7', bodyColor:'#A1A1AA', titleFont:{family:"'JetBrains Mono'", size:11}, bodyFont:{family:"'JetBrains Mono'", size:11}, padding:10, cornerRadius:0 }
-            }
-          }
-        });
-      }
-    }
+    trendChartSVG() { return this.kpi ? buildTrendSVG(this.kpi.monthly_trend) : ''; },
+    categoryChartSVG() { return this.kpi ? buildDonutSVG(this.kpi.top_categories) : ''; },
+    fmtMoney, fmtInt, fmtDate, fmtDateTime,
   };
 }
 
@@ -413,6 +509,8 @@ function assistantApp() {
   };
 }
 
+window.appRoot = appRoot;
+window.tourController = tourController;
 window.dashboardApp = dashboardApp;
 window.inventoryApp = inventoryApp;
 window.purchasesApp = purchasesApp;

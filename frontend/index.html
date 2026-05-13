@@ -6,12 +6,54 @@
 <title>Wilson Trailers // Inventory AI</title>
 <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/assets/styles.css?v=20260512c">
+<link rel="stylesheet" href="/static/assets/styles.css?v=20260513a">
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-<script src="/static/assets/app.js?v=20260512c"></script>
+<script src="/static/assets/app.js?v=20260513a"></script>
 </head>
-<body>
+<body x-data="appRoot()" x-init="boot()">
+
+<!-- ============ SPLASH SCREEN ============ -->
+<div class="splash" x-show="splash" x-cloak @click="enterApp()">
+  <div class="splash-logo">
+    <svg viewBox="0 0 280 80" xmlns="http://www.w3.org/2000/svg" width="220" height="80">
+      <path class="wt-W" d="M8 18 L24 62 L34 38 L44 62 L60 18 L52 18 L40 48 L34 26 L28 48 L16 18 Z"/>
+    </svg>
+  </div>
+  <h1 class="splash-title">WILSON TRAILERS</h1>
+  <div class="splash-tag">Inventory Intelligence System</div>
+  <div class="splash-divider"></div>
+  <div class="splash-meta">
+    <div class="row"><span>plant</span><span>Sioux City, IA</span></div>
+    <div class="row"><span>est.</span><span>1883</span></div>
+    <div class="row"><span>module</span><span>inventory-ai</span></div>
+    <div class="row"><span>build</span><span>v1.0.0</span></div>
+    <div class="row"><span>status</span><span class="ok">● synchronized</span></div>
+  </div>
+  <div class="splash-cta" @click.stop="enterApp(true)">Enter system →</div>
+  <div class="splash-progress">94 skus · 4 bom models · 30 work orders · 1,836 movements</div>
+</div>
+
+<!-- ============ TOUR ============ -->
+<template x-if="tour.active">
+  <div>
+    <div class="tour-backdrop" @click="tour.skip()"></div>
+    <div class="tour-card" :style="tour.cardStyle()">
+      <div class="dots">
+        <template x-for="(s,i) in tour.steps" :key="i">
+          <span :class="{on: i <= tour.idx}"></span>
+        </template>
+      </div>
+      <div class="step" x-text="`Step ${tour.idx+1} of ${tour.steps.length}`"></div>
+      <h4 x-text="tour.steps[tour.idx].title"></h4>
+      <p x-text="tour.steps[tour.idx].body"></p>
+      <div class="ctrl">
+        <span class="skip" @click="tour.skip()">Skip tour</span>
+        <button class="next" @click="tour.advance()" x-text="tour.idx === tour.steps.length-1 ? 'Finish' : 'Next →'"></button>
+      </div>
+    </div>
+  </div>
+</template>
+
 <div class="app" x-data="{view:'dashboard', titles:{dashboard:'Overview', inventory:'Inventory', purchases:'Purchases', expenses:'Expenses', history:'Activity', assistant:'Assistant'}}">
 
   <!-- SIDEBAR -->
@@ -21,18 +63,18 @@
     </div>
 
     <div class="section-label">Workspace</div>
-    <nav>
+    <nav id="tour-nav">
       <a href="#" :class="{active: view==='dashboard'}"  @click.prevent="view='dashboard'"><span class="key">01</span> Overview</a>
-      <a href="#" :class="{active: view==='inventory'}"  @click.prevent="view='inventory'"><span class="key">02</span> Inventory</a>
+      <a href="#" :class="{active: view==='inventory'}"  @click.prevent="view='inventory'" id="tour-nav-inv"><span class="key">02</span> Inventory</a>
       <a href="#" :class="{active: view==='purchases'}"  @click.prevent="view='purchases'"><span class="key">03</span> Purchases</a>
       <a href="#" :class="{active: view==='expenses'}"   @click.prevent="view='expenses'"><span class="key">04</span> Expenses</a>
-      <a href="#" :class="{active: view==='production'}" @click.prevent="view='production'"><span class="key">05</span> Production</a>
+      <a href="#" :class="{active: view==='production'}" @click.prevent="view='production'" id="tour-nav-prod"><span class="key">05</span> Production</a>
       <a href="#" :class="{active: view==='history'}"    @click.prevent="view='history'"><span class="key">06</span> Activity Log</a>
     </nav>
 
     <div class="section-label">Intelligence</div>
     <nav>
-      <a href="#" :class="{active: view==='assistant'}" @click.prevent="view='assistant'"><span class="key">AI</span> Assistant</a>
+      <a href="#" :class="{active: view==='assistant'}" @click.prevent="view='assistant'" id="tour-nav-ai"><span class="key">AI</span> Assistant</a>
     </nav>
 
     <div class="foot">
@@ -65,7 +107,7 @@
 
         <div x-show="kpi">
           <!-- KPIs -->
-          <div class="kpi-grid">
+          <div class="kpi-grid" id="tour-kpis">
             <div class="kpi">
               <div class="label">Inventory Value</div>
               <div class="value" x-text="kpi ? fmtMoney(kpi.inventory_value) : '—'"></div>
@@ -88,21 +130,25 @@
             </div>
           </div>
 
-          <!-- Charts -->
-          <div class="panels">
+          <!-- Charts (SVG, no canvas) -->
+          <div class="panels" id="tour-charts">
             <div class="panel">
               <div class="panel-h">
                 <h3>Cashflow · trailing 6 months</h3>
                 <span class="meta">purchases vs expenses</span>
               </div>
-              <div style="height:260px;position:relative;"><canvas id="trendChart"></canvas></div>
+              <div style="height:240px;position:relative;" id="trendSvg" x-html="trendChartSVG()"></div>
+              <div class="chart-legend">
+                <span class="key"><span class="sw" style="background:#E30613;"></span>purchases</span>
+                <span class="key"><span class="sw" style="background:#CBD5E1;"></span>expenses</span>
+              </div>
             </div>
             <div class="panel">
               <div class="panel-h">
                 <h3>Inventory by category</h3>
                 <span class="meta">by value</span>
               </div>
-              <div style="height:260px;position:relative;"><canvas id="catChart"></canvas></div>
+              <div style="height:240px;" x-html="categoryChartSVG()"></div>
             </div>
           </div>
 
