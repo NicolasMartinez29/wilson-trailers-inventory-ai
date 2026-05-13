@@ -16,7 +16,7 @@ Base.metadata.create_all(bind=engine)
 
 
 def _ensure_seeded():
-    """Auto-seed if running on serverless and DB is empty."""
+    """Last-resort seed only if the bundled DB copy failed for some reason."""
     db = SessionLocal()
     try:
         if db.query(models.Product).count() == 0:
@@ -181,6 +181,59 @@ def delete_product(pid: int, db: Session = Depends(get_db)):
     db.delete(p)
     db.commit()
     return {"ok": True}
+
+
+@app.post("/api/products/{pid}/withdraw")
+def withdraw_stock(pid: int, payload: schemas.WithdrawRequest, db: Session = Depends(get_db)):
+    p = db.query(models.Product).get(pid)
+    if not p:
+        raise HTTPException(404, "Product not found")
+    if payload.quantity < 1:
+        raise HTTPException(400, "Quantity must be >= 1")
+    if p.stock < payload.quantity:
+        raise HTTPException(400, f"Insufficient stock: have {p.stock}, requested {payload.quantity}")
+
+    p.stock = max(0, p.stock - payload.quantity)
+    mv = models.StockMovement(
+        product_id=p.id,
+        movement_type="OUT",
+        quantity=payload.quantity,
+        reason=f"{payload.operator} - {payload.reason}",
+        reference=payload.reason,
+    )
+    db.add(mv)
+    db.commit()
+    db.refresh(mv)
+    return {
+        "ok": True,
+        "movement_id": mv.id,
+        "sku": p.sku,
+        "name": p.name,
+        "new_stock": p.stock,
+        "operator": payload.operator,
+        "reason": payload.reason,
+    }
+
+
+@app.get("/api/movements/recent", response_model=List[schemas.RecentMovementOut])
+def recent_movements(limit: int = 12, db: Session = Depends(get_db)):
+    rows = (
+        db.query(models.StockMovement)
+        .order_by(models.StockMovement.date.desc())
+        .limit(limit)
+        .all()
+    )
+    out = []
+    for m in rows:
+        p = db.query(models.Product).get(m.product_id)
+        if not p:
+            continue
+        out.append(schemas.RecentMovementOut(
+            id=m.id, date=m.date, sku=p.sku, item_name=p.name,
+            movement_type=m.movement_type, quantity=m.quantity,
+            reason=m.reason, reference=m.reference,
+        ))
+    return out
 
 
 # ----------- Purchases -----------

@@ -7,10 +7,11 @@ __pycache__/
 venv/
 env/
 
-# DB
-*.db
+# DB (but ship the pre-seeded bundle)
+wilson_inventory.db
 *.sqlite
 *.sqlite3
+!backend/wilson_inventory_seed.db
 
 # OS
 .DS_Store

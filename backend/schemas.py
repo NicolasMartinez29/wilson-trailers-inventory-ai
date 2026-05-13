@@ -120,6 +120,26 @@ class DashboardKPIs(BaseModel):
     monthly_trend: List[dict]
 
 
+# ---------- Stock Withdraw ----------
+class WithdrawRequest(BaseModel):
+    product_id: int
+    quantity: int
+    operator: str  # who took it
+    reason: str    # WO number or maintenance / sample
+    notes: Optional[str] = None
+
+
+class RecentMovementOut(BaseModel):
+    id: int
+    date: datetime
+    sku: str
+    item_name: str
+    movement_type: str
+    quantity: int
+    reason: Optional[str] = None
+    reference: Optional[str] = None
+
+
 # ---------- BoM / Production ----------
 class BOMLineOut(BaseModel):
     sku: str

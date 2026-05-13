@@ -107,6 +107,27 @@
               </div>
             </div>
 
+            <!-- Live stock activity -->
+            <h3 class="section-title">Live stock activity</h3>
+            <div class="panel standalone" style="padding:0;margin-bottom:24px;">
+              <table class="tbl">
+                <thead><tr><th>When</th><th>SKU</th><th>Item</th><th>Type</th><th>Qty</th><th>Operator / Reason</th></tr></thead>
+                <tbody>
+                  <template x-for="m in recentMovements" :key="m.id">
+                    <tr>
+                      <td><span class="num" x-text="fmtDateTime(m.date)"></span></td>
+                      <td><span class="sku" x-text="m.sku"></span></td>
+                      <td x-text="m.item_name"></td>
+                      <td><span class="tag" :class="m.movement_type==='IN' ? 'tag-in' : (m.movement_type==='OUT' ? 'tag-out' : 'tag-adj')" x-text="m.movement_type"></span></td>
+                      <td><span class="num-strong" x-text="m.quantity"></span></td>
+                      <td><span class="num" x-text="m.reason || '-'" style="color:var(--muted);"></span></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <div x-show="recentMovements.length === 0" class="empty">No movements yet</div>
+            </div>
+
             <!-- Tables -->
             <div class="panels eq">
               <div class="panel">
@@ -198,6 +219,7 @@
                   <td><span class="num-strong" x-text="fmtMoney(value(p))"></span></td>
                   <td><span class="num" x-text="p.location || '—'" style="color:var(--dim);"></span></td>
                   <td style="text-align:right;white-space:nowrap;">
+                    <button class="btn btn-sm btn-primary" @click="openWithdraw(p)" :disabled="p.stock === 0">withdraw</button>
                     <button class="btn btn-sm" @click="open(p)">edit</button>
                     <button class="btn btn-sm btn-danger" @click="remove(p.id)">del</button>
                   </td>
@@ -209,7 +231,80 @@
         </div>
       </div>
 
-      <!-- Modal -->
+      <!-- Recent stock activity (visible below table) -->
+      <div class="content" style="padding-top:24px;">
+        <h3 class="section-title">Recent stock activity</h3>
+        <div class="panel standalone" style="padding:0;">
+          <table class="tbl">
+            <thead><tr><th>When</th><th>SKU</th><th>Item</th><th>Type</th><th>Qty</th><th>Reason / Operator</th></tr></thead>
+            <tbody>
+              <template x-for="m in movements" :key="m.id">
+                <tr>
+                  <td><span class="num" x-text="fmtDateTime(m.date)"></span></td>
+                  <td><span class="sku" x-text="m.sku"></span></td>
+                  <td x-text="m.item_name"></td>
+                  <td><span class="tag" :class="m.movement_type==='IN' ? 'tag-in' : (m.movement_type==='OUT' ? 'tag-out' : 'tag-adj')" x-text="m.movement_type"></span></td>
+                  <td><span class="num-strong" x-text="m.quantity"></span></td>
+                  <td><span class="num" x-text="m.reason || '-'" style="color:var(--muted);"></span></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div x-show="movements.length === 0" class="empty">No stock movements yet</div>
+        </div>
+      </div>
+
+      <!-- Toast -->
+      <div x-show="toast" x-cloak
+           style="position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--red);padding:14px 18px;font-family:var(--mono);font-size:12px;color:var(--text);max-width:420px;z-index:200;"
+           x-transition>
+        <div style="color:var(--red);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;">stock withdrawn</div>
+        <div x-text="toast"></div>
+      </div>
+
+      <!-- Withdraw Modal -->
+      <div class="modal-bg" x-show="showWithdraw" @click.self="showWithdraw=false" x-cloak>
+        <div class="modal">
+          <div class="modal-h">
+            <h3>withdraw stock</h3>
+            <span class="close" @click="showWithdraw=false">×</span>
+          </div>
+          <div class="modal-body">
+            <div style="background:var(--elevated);border:1px solid var(--line);padding:12px 14px;margin-bottom:14px;">
+              <div style="font-family:var(--mono);font-size:11px;color:var(--dim);">SKU</div>
+              <div style="font-family:var(--mono);font-size:13px;color:var(--text);margin-top:2px;" x-text="withdrawTarget?.sku"></div>
+              <div style="font-size:13px;color:var(--text);margin-top:4px;" x-text="withdrawTarget?.name"></div>
+              <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;">
+                current stock: <span style="color:var(--text);" x-text="withdrawTarget?.stock"></span> units
+              </div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Quantity to withdraw</label>
+                <input class="input mono" type="number" min="1" :max="withdrawTarget?.stock" x-model.number="withdrawForm.quantity">
+              </div>
+              <div class="field"><label>Operator</label>
+                <input class="input" x-model="withdrawForm.operator" list="op-list">
+                <datalist id="op-list">
+                  <template x-for="o in operatorPresets" :key="o"><option :value="o"></option></template>
+                </datalist>
+              </div>
+            </div>
+            <div class="field">
+              <label>Reason / Work order</label>
+              <input class="input" x-model="withdrawForm.reason" placeholder="e.g. WO-7234 / Silverstar rebuild / sample">
+            </div>
+            <div class="field"><label>Notes (optional)</label>
+              <textarea class="textarea" x-model="withdrawForm.notes" rows="2"></textarea>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn" @click="showWithdraw=false">Cancel</button>
+            <button class="btn btn-primary" @click="doWithdraw()" :disabled="!withdrawForm.operator || !withdrawForm.reason">Withdraw</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit/New Modal -->
       <div class="modal-bg" x-show="showModal" @click.self="showModal=false" x-cloak>
         <div class="modal">
           <div class="modal-h">

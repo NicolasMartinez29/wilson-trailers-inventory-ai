@@ -51,11 +51,23 @@ function dashboardApp() {
     catChart: null,
     lowStock: [],
     recentPurchases: [],
+    recentMovements: [],
     async init() {
       this.kpi = await api('/api/dashboard');
       this.lowStock = await api('/api/products?low_only=true');
       this.recentPurchases = await api('/api/purchases?limit=5');
-      this.$nextTick(() => this.renderCharts());
+      this.recentMovements = await api('/api/movements/recent?limit=8');
+      this.scheduleRender();
+    },
+    scheduleRender(tries = 0) {
+      // Wait until <template x-if="kpi"> mounted the canvases AND they have dimensions
+      const a = document.getElementById('trendChart');
+      const b = document.getElementById('catChart');
+      if (!a || !b || a.clientWidth === 0 || b.clientWidth === 0) {
+        if (tries < 30) return setTimeout(() => this.scheduleRender(tries + 1), 80);
+        return;
+      }
+      this.renderCharts();
     },
     renderCharts() {
       const ctx = document.getElementById('trendChart');
@@ -115,16 +127,23 @@ function dashboardApp() {
 function inventoryApp() {
   return {
     items: [],
+    movements: [],
     q: '',
     category: '',
     categories: [],
     lowOnly: false,
     showModal: false,
+    showWithdraw: false,
     editing: null,
     form: this.emptyForm(),
+    withdrawTarget: null,
+    withdrawForm: { quantity: 1, operator: '', reason: '', notes: '' },
+    operatorPresets: ['Tom Henderson','Mike Schultz','Carlos Reyes','Dave Anderson','Sarah Klein','Jeremy Cole'],
+    toast: null,
     async init() {
       this.categories = await api('/api/meta/categories');
       await this.load();
+      this.movements = await api('/api/movements/recent?limit=8');
     },
     emptyForm() {
       return { sku:'', name:'', category:'', trailer_line:'', unit_cost:0, stock:0, min_stock:5, location:'', supplier:'' };
@@ -154,9 +173,41 @@ function inventoryApp() {
       await api(`/api/products/${id}`, { method:'DELETE' });
       await this.load();
     },
+    openWithdraw(p) {
+      this.withdrawTarget = p;
+      this.withdrawForm = { quantity: 1, operator: this.operatorPresets[0], reason: '', notes: '' };
+      this.showWithdraw = true;
+    },
+    async doWithdraw() {
+      if (!this.withdrawTarget) return;
+      try {
+        const r = await fetch(`/api/products/${this.withdrawTarget.id}/withdraw`, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            product_id: this.withdrawTarget.id,
+            quantity: Number(this.withdrawForm.quantity),
+            operator: this.withdrawForm.operator,
+            reason: this.withdrawForm.reason || 'manual',
+            notes: this.withdrawForm.notes,
+          }),
+        });
+        if (!r.ok) {
+          const err = await r.json();
+          alert('Failed: ' + (err.detail || JSON.stringify(err)));
+          return;
+        }
+        const data = await r.json();
+        this.toast = `${data.operator} pulled ${this.withdrawForm.quantity} x ${data.sku} - ${this.withdrawForm.reason}. New stock: ${data.new_stock}`;
+        setTimeout(() => this.toast = null, 5500);
+        this.showWithdraw = false;
+        await this.load();
+        this.movements = await api('/api/movements/recent?limit=8');
+      } catch (e) { alert(e.message); }
+    },
     isLow(p) { return p.stock <= p.min_stock; },
     value(p) { return p.stock * p.unit_cost; },
-    fmtMoney, fmtInt,
+    fmtMoney, fmtInt, fmtDateTime,
   };
 }
 
@@ -318,18 +369,18 @@ function historyApp() {
 function assistantApp() {
   return {
     messages: [
-      { role:'bot', text: 'Wilson Trailers AI · ready.\n\nQuery operational data using natural language. Try one of the shortcuts below or type your own question.' }
+      { role:'bot', text: 'Wilson Trailers AI is online.\n\nAsk anything about inventory, purchases, expenses, production capacity, or SKU runout forecasts in plain English.' }
     ],
     input: '',
     loading: false,
     suggestions: [
-      'general summary',
-      'cuántos trailers puedo producir',
-      'qué SKUs se acaban primero',
+      'summary',
+      'how many trailers can I build',
+      'which SKUs run out first',
       'skus below minimum',
       'purchases this month',
       'expenses by category',
-      'top 5 by value',
+      'top SKUs by value',
     ],
     async send(q) {
       const question = (q || this.input || '').trim();
