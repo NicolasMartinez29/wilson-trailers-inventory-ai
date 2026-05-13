@@ -125,6 +125,7 @@ function dashboardApp() {
 }
 
 function inventoryApp() {
+  const blank = () => ({ sku:'', name:'', category:'', trailer_line:'', unit_cost:0, stock:0, min_stock:5, location:'', supplier:'' });
   return {
     items: [],
     movements: [],
@@ -135,19 +136,21 @@ function inventoryApp() {
     showModal: false,
     showWithdraw: false,
     editing: null,
-    form: this.emptyForm(),
+    form: blank(),
     withdrawTarget: null,
     withdrawForm: { quantity: 1, operator: '', reason: '', notes: '' },
     operatorPresets: ['Tom Henderson','Mike Schultz','Carlos Reyes','Dave Anderson','Sarah Klein','Jeremy Cole'],
     toast: null,
     async init() {
-      this.categories = await api('/api/meta/categories');
+      try {
+        this.categories = await api('/api/meta/categories');
+      } catch (e) { this.categories = []; }
       await this.load();
-      this.movements = await api('/api/movements/recent?limit=8');
+      try {
+        this.movements = await api('/api/movements/recent?limit=8');
+      } catch (e) { this.movements = []; }
     },
-    emptyForm() {
-      return { sku:'', name:'', category:'', trailer_line:'', unit_cost:0, stock:0, min_stock:5, location:'', supplier:'' };
-    },
+    emptyForm() { return blank(); },
     async load() {
       const params = new URLSearchParams();
       if (this.q) params.set('q', this.q);
@@ -157,7 +160,7 @@ function inventoryApp() {
     },
     open(item) {
       if (item) { this.editing = item.id; this.form = { ...item }; }
-      else { this.editing = null; this.form = this.emptyForm(); }
+      else { this.editing = null; this.form = blank(); }
       this.showModal = true;
     },
     async save() {
