@@ -449,7 +449,7 @@ def produce(payload: schemas.ProduceRequest, db: Session = Depends(get_db)):
         db.add(models.StockMovement(
             date=now, product_id=bl.product_id,
             movement_type="OUT", quantity=qty_int,
-            reason=f"Producción {payload.trailer_line} {wo_num}",
+            reason=f"Production {payload.trailer_line} {wo_num}",
             reference=wo_num,
         ))
 
