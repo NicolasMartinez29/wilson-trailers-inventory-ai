@@ -231,15 +231,20 @@ button:focus-visible, .btn:focus-visible { outline-offset: 1px; }
 .kpi:last-child { border-right: none; }
 .kpi .label {
   color: var(--faint); font-size: 10.5px; font-weight: 500;
-  text-transform: uppercase; letter-spacing:.12em;
+  text-transform: uppercase; letter-spacing:.14em;
   font-family: var(--mono);
   margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.kpi .label::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--line), transparent);
 }
 .kpi .value {
-  font-family: var(--mono);
-  font-size: 24px; font-weight: 600; color: var(--text);
-  letter-spacing:-0.01em;
-  line-height: 1.1;
+  font-family: 'Oswald', 'JetBrains Mono', monospace;
+  font-size: 30px; font-weight: 500; color: var(--text);
+  letter-spacing: .01em;
+  line-height: 1.05;
   margin-bottom: 6px;
 }
 .kpi .meta {
@@ -260,8 +265,17 @@ button:focus-visible, .btn:focus-visible { outline-offset: 1px; }
   border: 1px solid var(--line);
   background: var(--surface);
   margin-bottom: 24px;
+  position: relative;
 }
 .panel.standalone:last-child { margin-bottom: 0; }
+.panel.standalone::before {
+  content: ''; position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,.018) 1px, transparent 1px);
+  background-size: 16px 16px;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.panel.standalone > * { position: relative; z-index: 1; }
 
 .panel-h {
   display:flex; justify-content:space-between; align-items:baseline;
@@ -310,15 +324,18 @@ table.tbl tbody tr:last-child td { border-bottom: none; }
 }
 
 .tag {
-  display:inline-block;
+  display:inline-flex; align-items: center; gap: 5px;
   padding: 2px 8px;
   font-size: 10.5px; font-weight: 500;
   font-family: var(--mono);
-  text-transform: uppercase; letter-spacing:.05em;
+  text-transform: uppercase; letter-spacing:.06em;
   border: 1px solid var(--line-2);
   background: var(--elevated);
   color: var(--muted);
+  position: relative;
+  transition: all .15s ease;
 }
+.tag:hover { border-color: currentColor; }
 .tag-line { color: var(--amber); border-color: rgba(245,158,11,.35); }
 .tag-ok { color: var(--green); border-color: rgba(34,197,94,.35); background: rgba(34,197,94,.06); }
 .tag-low { color: var(--red); border-color: rgba(227,6,19,.45); background: rgba(227,6,19,.08); }

@@ -266,6 +266,27 @@ function tourController() {
   };
 }
 
+// ====================== Sparkline (mini SVG line) ======================
+function sparkSVG(values, opts = {}) {
+  if (!values || values.length < 2) return '';
+  const W = 100, H = 22;
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+  const stepX = W / (values.length - 1);
+  const points = values.map((v, i) => `${(i * stepX).toFixed(1)},${(H - ((v - min) / range) * H).toFixed(1)}`);
+  const line = 'M ' + points.join(' L ');
+  const area = `M 0,${H} L ` + points.join(' L ') + ` L ${W},${H} Z`;
+  const color = opts.color || '#E30613';
+  const fillColor = opts.fillColor || 'rgba(227,6,19,.12)';
+  const lastPt = points[points.length-1].split(',');
+  return `<svg class="sparkline" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <path d="${area}" fill="${fillColor}" stroke="none"/>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="1.3"/>
+    <circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="1.8" fill="${color}"/>
+  </svg>`;
+}
+
 // ====================== SKU Detail Modal ======================
 function skuDetailController() {
   return {
@@ -523,7 +544,7 @@ function dashboardApp() {
     },
     trendChartSVG() { return this.kpi ? buildTrendSVG(this.kpi.monthly_trend) : ''; },
     categoryChartSVG() { return this.kpi ? buildDonutSVG(this.kpi.top_categories) : ''; },
-    fmtMoney, fmtInt, fmtDate, fmtDateTime,
+    sparkSVG, fmtMoney, fmtInt, fmtDate, fmtDateTime,
   };
 }
 

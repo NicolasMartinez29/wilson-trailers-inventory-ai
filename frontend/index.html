@@ -6,9 +6,9 @@
 <title>Wilson Trailers // Inventory AI</title>
 <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/assets/styles.css?v=20260513f">
+<link rel="stylesheet" href="/static/assets/styles.css?v=20260513g">
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
-<script src="/static/assets/app.js?v=20260513f"></script>
+<script src="/static/assets/app.js?v=20260513g"></script>
 </head>
 <body x-data="appRoot()" x-init="boot()">
 
@@ -314,11 +314,13 @@
               <div class="label">Purchases MTD</div>
               <div class="value counter" x-init="$watch('kpi', v => v && countUp($el, v.purchases_mtd, {prefix:'$', decimals:2}))">—</div>
               <div class="meta">today<span class="num counter" x-init="$watch('kpi', v => v && countUp($el, v.purchases_today, {prefix:'$', decimals:2}))"></span></div>
+              <div x-html="kpi ? sparkSVG(kpi.monthly_trend.map(m => m.purchases)) : ''"></div>
             </div>
             <div class="kpi">
               <div class="label">Expenses MTD</div>
               <div class="value counter" x-init="$watch('kpi', v => v && countUp($el, v.expenses_mtd, {prefix:'$', decimals:2}))">—</div>
               <div class="meta">today<span class="num counter" x-init="$watch('kpi', v => v && countUp($el, v.expenses_today, {prefix:'$', decimals:2}))"></span></div>
+              <div x-html="kpi ? sparkSVG(kpi.monthly_trend.map(m => m.expenses), {color:'#CBD5E1', fillColor:'rgba(203,213,225,.10)'}) : ''"></div>
             </div>
             <div class="kpi">
               <div class="label">Stock Alerts</div>
