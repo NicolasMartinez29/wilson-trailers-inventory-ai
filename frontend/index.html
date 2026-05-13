@@ -6,9 +6,9 @@
 <title>Wilson Trailers // Inventory AI</title>
 <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/assets/styles.css?v=20260513h">
+<link rel="stylesheet" href="/static/assets/styles.css?v=20260513i">
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
-<script src="/static/assets/app.js?v=20260513h"></script>
+<script src="/static/assets/app.js?v=20260513i"></script>
 </head>
 <body x-data="appRoot()" x-init="boot()">
 
@@ -243,17 +243,17 @@
 
     <div class="section-label">Workspace</div>
     <nav id="tour-nav">
-      <a href="#" :class="{active: view==='dashboard'}"  @click.prevent="view='dashboard'"><span class="key">01</span> Overview</a>
-      <a href="#" :class="{active: view==='inventory'}"  @click.prevent="view='inventory'" id="tour-nav-inv"><span class="key">02</span> Inventory</a>
-      <a href="#" :class="{active: view==='purchases'}"  @click.prevent="view='purchases'"><span class="key">03</span> Purchases</a>
-      <a href="#" :class="{active: view==='expenses'}"   @click.prevent="view='expenses'"><span class="key">04</span> Expenses</a>
-      <a href="#" :class="{active: view==='production'}" @click.prevent="view='production'" id="tour-nav-prod"><span class="key">05</span> Production</a>
-      <a href="#" :class="{active: view==='history'}"    @click.prevent="view='history'"><span class="key">06</span> Activity Log</a>
+      <a href="#" :class="{active: view==='dashboard'}"  @click.prevent="view='dashboard'"><span class="key">01</span> Overview<span class="shortcut-hint">O</span></a>
+      <a href="#" :class="{active: view==='inventory'}"  @click.prevent="view='inventory'" id="tour-nav-inv"><span class="key">02</span> Inventory<span class="shortcut-hint">I</span></a>
+      <a href="#" :class="{active: view==='purchases'}"  @click.prevent="view='purchases'"><span class="key">03</span> Purchases<span class="shortcut-hint">C</span></a>
+      <a href="#" :class="{active: view==='expenses'}"   @click.prevent="view='expenses'"><span class="key">04</span> Expenses<span class="shortcut-hint">X</span></a>
+      <a href="#" :class="{active: view==='production'}" @click.prevent="view='production'" id="tour-nav-prod"><span class="key">05</span> Production<span class="shortcut-hint">P</span></a>
+      <a href="#" :class="{active: view==='history'}"    @click.prevent="view='history'"><span class="key">06</span> Activity Log<span class="shortcut-hint">H</span></a>
     </nav>
 
     <div class="section-label">Intelligence</div>
     <nav>
-      <a href="#" :class="{active: view==='assistant'}" @click.prevent="view='assistant'" id="tour-nav-ai"><span class="key">AI</span> Assistant</a>
+      <a href="#" :class="{active: view==='assistant'}" @click.prevent="view='assistant'" id="tour-nav-ai"><span class="key">AI</span> Assistant<span class="shortcut-hint">A</span></a>
     </nav>
 
     <div class="foot">
@@ -275,6 +275,10 @@
           <div class="sub">Real-time operational telemetry · Sioux City plant</div>
         </div>
         <div class="actions" style="position:relative;">
+          <span class="cmd-hint" @click="app().cmd.toggle()">
+            <kbd>⌘</kbd><kbd>K</kbd>
+            <span>Search</span>
+          </span>
           <span class="status-dot"><span class="d"></span> LIVE</span>
           <div style="position:relative;">
             <button class="notif-bell" @click="app().toggleNotifs()" :class="{'has-unread': app().notifs.unread > 0}">

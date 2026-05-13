@@ -578,7 +578,7 @@ function dashboardApp() {
     recentPurchases: [],
     recentMovements: [],
     _poll: null,
-    _lastMovementId: 0,
+    _lastMovementId: null,
     pollMs: 30000,
     async init() {
       await this.refresh(true);
@@ -594,13 +594,15 @@ function dashboardApp() {
           api('/api/movements/recent?limit=8'),
         ]);
         // Diff detection on subsequent refreshes
-        if (!initial && recentMovements.length && this._lastMovementId) {
+        if (!initial && recentMovements.length && this._lastMovementId !== null) {
           const newest = recentMovements[0];
           if (newest.id > this._lastMovementId) {
             toastInfo('New movement detected', `${newest.sku} · ${newest.movement_type} · ${newest.quantity}u`);
           }
         }
-        if (recentMovements.length) this._lastMovementId = Math.max(this._lastMovementId, recentMovements[0].id);
+        if (recentMovements.length) {
+          this._lastMovementId = Math.max(this._lastMovementId || 0, recentMovements[0].id);
+        }
         this.kpi = kpi;
         this.lowStock = lowStock;
         this.recentPurchases = recentPurchases;
