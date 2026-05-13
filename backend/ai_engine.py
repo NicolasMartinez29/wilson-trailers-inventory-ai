@@ -1,0 +1,221 @@
+"""
+AI Engine - Local-first inventory intelligence.
+Answers natural language questions about inventory, purchases, expenses.
+Falls back to Anthropic API if available, otherwise uses local heuristics.
+"""
+import os
+import re
+from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
+from sqlalchemy import func, and_
+from . import models
+
+
+def _today_range():
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    return today, today + timedelta(days=1)
+
+
+def _month_range():
+    today = datetime.utcnow()
+    start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return start, today
+
+
+def _summarize_state(db: Session) -> dict:
+    total_skus = db.query(func.count(models.Product.id)).scalar() or 0
+    total_units = db.query(func.coalesce(func.sum(models.Product.stock), 0)).scalar() or 0
+    inventory_value = db.query(
+        func.coalesce(func.sum(models.Product.stock * models.Product.unit_cost), 0.0)
+    ).scalar() or 0.0
+    low_stock = (
+        db.query(models.Product)
+        .filter(models.Product.stock <= models.Product.min_stock)
+        .order_by(models.Product.stock.asc())
+        .limit(10)
+        .all()
+    )
+    m_start, _ = _month_range()
+    purchases_mtd = db.query(
+        func.coalesce(func.sum(models.Purchase.total), 0.0)
+    ).filter(models.Purchase.date >= m_start).scalar() or 0.0
+    expenses_mtd = db.query(
+        func.coalesce(func.sum(models.Expense.amount), 0.0)
+    ).filter(models.Expense.date >= m_start).scalar() or 0.0
+
+    t_start, t_end = _today_range()
+    purchases_today = db.query(
+        func.coalesce(func.sum(models.Purchase.total), 0.0)
+    ).filter(and_(models.Purchase.date >= t_start, models.Purchase.date < t_end)).scalar() or 0.0
+    expenses_today = db.query(
+        func.coalesce(func.sum(models.Expense.amount), 0.0)
+    ).filter(and_(models.Expense.date >= t_start, models.Expense.date < t_end)).scalar() or 0.0
+
+    top_value = (
+        db.query(models.Product)
+        .order_by((models.Product.stock * models.Product.unit_cost).desc())
+        .limit(5)
+        .all()
+    )
+
+    return {
+        "total_skus": total_skus,
+        "total_units": int(total_units),
+        "inventory_value": float(inventory_value),
+        "purchases_mtd": float(purchases_mtd),
+        "expenses_mtd": float(expenses_mtd),
+        "purchases_today": float(purchases_today),
+        "expenses_today": float(expenses_today),
+        "low_stock": [
+            {"sku": p.sku, "name": p.name, "stock": p.stock, "min_stock": p.min_stock}
+            for p in low_stock
+        ],
+        "top_value": [
+            {
+                "sku": p.sku,
+                "name": p.name,
+                "stock": p.stock,
+                "unit_cost": p.unit_cost,
+                "value": round(p.stock * p.unit_cost, 2),
+            }
+            for p in top_value
+        ],
+    }
+
+
+def _local_answer(question: str, state: dict, db: Session) -> str:
+    q = question.lower().strip()
+
+    money = lambda v: f"${v:,.2f}"
+
+    # Stock / inventario
+    if any(k in q for k in ["cuánto tengo", "cuanto tengo", "stock total", "inventario total", "how much"]):
+        return (
+            f"Tienes **{state['total_units']:,} unidades** distribuidas en "
+            f"**{state['total_skus']} SKUs**, con un valor de inventario de "
+            f"**{money(state['inventory_value'])}**."
+        )
+
+    # Stock bajo / alertas
+    if any(k in q for k in ["bajo", "alert", "reponer", "agotar", "low stock", "min"]):
+        if not state["low_stock"]:
+            return "✅ Sin alertas de stock bajo. Todos los SKUs por encima del mínimo."
+        lines = [f"⚠️ **{len(state['low_stock'])} SKUs por debajo del mínimo:**\n"]
+        for it in state["low_stock"][:8]:
+            lines.append(f"• {it['sku']} — {it['name']}: **{it['stock']}** u (mín {it['min_stock']})")
+        return "\n".join(lines)
+
+    # Compras
+    if any(k in q for k in ["compr", "purchase", "po ", "proveedor", "vendor"]):
+        if "hoy" in q or "today" in q:
+            return f"Compras de hoy: **{money(state['purchases_today'])}**."
+        if "mes" in q or "month" in q or "mtd" in q:
+            return f"Compras del mes (MTD): **{money(state['purchases_mtd'])}**."
+        recent = db.query(models.Purchase).order_by(models.Purchase.date.desc()).limit(5).all()
+        if not recent:
+            return "No hay compras registradas todavía."
+        lines = ["**Últimas 5 compras:**"]
+        for p in recent:
+            lines.append(f"• {p.po_number} — {p.vendor} — {money(p.total)} ({p.date.strftime('%Y-%m-%d')})")
+        return "\n".join(lines)
+
+    # Gastos
+    if any(k in q for k in ["gast", "expense", "spend", "spent", "cost"]):
+        if "hoy" in q or "today" in q:
+            return f"Gastos de hoy: **{money(state['expenses_today'])}**."
+        if "mes" in q or "month" in q or "mtd" in q:
+            # breakdown por categoria
+            m_start, _ = _month_range()
+            rows = (
+                db.query(models.Expense.category, func.sum(models.Expense.amount))
+                .filter(models.Expense.date >= m_start)
+                .group_by(models.Expense.category)
+                .order_by(func.sum(models.Expense.amount).desc())
+                .all()
+            )
+            lines = [f"**Gastos MTD: {money(state['expenses_mtd'])}**"]
+            for cat, amt in rows:
+                lines.append(f"• {cat}: {money(amt)}")
+            return "\n".join(lines)
+        recent = db.query(models.Expense).order_by(models.Expense.date.desc()).limit(5).all()
+        lines = ["**Últimos 5 gastos:**"]
+        for e in recent:
+            lines.append(f"• {e.date.strftime('%Y-%m-%d')} — {e.category}: {e.description} — {money(e.amount)}")
+        return "\n".join(lines)
+
+    # Más caro / top
+    if any(k in q for k in ["caro", "expensive", "más valor", "mayor valor", "top", "ranking"]):
+        lines = ["**Top 5 SKUs por valor en inventario:**"]
+        for it in state["top_value"]:
+            lines.append(f"• {it['sku']} — {it['name']}: {it['stock']}u × {money(it['unit_cost'])} = **{money(it['value'])}**")
+        return "\n".join(lines)
+
+    # Resumen
+    if any(k in q for k in ["resumen", "summary", "status", "estado", "overview"]):
+        return (
+            f"**📊 Resumen Wilson Trailers**\n"
+            f"• Inventario: {state['total_units']:,} u en {state['total_skus']} SKUs ({money(state['inventory_value'])})\n"
+            f"• Compras MTD: {money(state['purchases_mtd'])} | Hoy: {money(state['purchases_today'])}\n"
+            f"• Gastos MTD: {money(state['expenses_mtd'])} | Hoy: {money(state['expenses_today'])}\n"
+            f"• Alertas de stock bajo: **{len(state['low_stock'])}**"
+        )
+
+    # SKU lookup
+    sku_match = re.search(r"\b([A-Z]{2,}-\d{3,})\b", question.upper())
+    if sku_match:
+        sku = sku_match.group(1)
+        p = db.query(models.Product).filter(models.Product.sku == sku).first()
+        if p:
+            return (
+                f"**{p.sku} — {p.name}**\n"
+                f"• Stock: {p.stock} u (mín {p.min_stock})\n"
+                f"• Costo unitario: {money(p.unit_cost)}\n"
+                f"• Valor: {money(p.stock * p.unit_cost)}\n"
+                f"• Categoría: {p.category} | Línea: {p.trailer_line or '—'}\n"
+                f"• Ubicación: {p.location or '—'} | Proveedor: {p.supplier or '—'}"
+            )
+
+    return (
+        "Puedo ayudarte con preguntas tipo:\n"
+        "• ¿Cuánto stock tengo en total?\n"
+        "• ¿Qué SKUs están bajo mínimo?\n"
+        "• ¿Cuánto compré este mes?\n"
+        "• ¿Cuáles son mis gastos del mes?\n"
+        "• Top productos por valor\n"
+        "• Dame el resumen general"
+    )
+
+
+def _claude_answer(question: str, state: dict) -> str | None:
+    """Try Claude API if key is configured. Returns None on failure."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return None
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=api_key)
+        system = (
+            "Eres un asistente de inventario para Wilson Trailers (fabricante de tráileres). "
+            "Respondes en español, conciso, con números en formato $1,234.56. "
+            "Solo usas los datos provistos. Si la pregunta no se puede responder con los datos, dilo."
+        )
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=400,
+            system=system,
+            messages=[{
+                "role": "user",
+                "content": f"Datos actuales del sistema:\n{state}\n\nPregunta del usuario: {question}",
+            }],
+        )
+        return msg.content[0].text
+    except Exception:
+        return None
+
+
+def answer(question: str, db: Session) -> dict:
+    state = _summarize_state(db)
+    claude = _claude_answer(question, state)
+    if claude:
+        return {"answer": claude, "data": state, "source": "claude"}
+    return {"answer": _local_answer(question, state, db), "data": state, "source": "local"}

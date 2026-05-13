@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wilson Trailers // Inventory AI</title>
+<link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/assets/styles.css">
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+<script src="/static/assets/app.js"></script>
+</head>
+<body>
+<div class="app" x-data="{view:'dashboard', titles:{dashboard:'Overview', inventory:'Inventory', purchases:'Purchases', expenses:'Expenses', history:'Activity', assistant:'Assistant'}}">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="/static/assets/logo.svg" alt="Wilson Trailers">
+    </div>
+
+    <div class="section-label">Workspace</div>
+    <nav>
+      <a href="#" :class="{active: view==='dashboard'}"  @click.prevent="view='dashboard'"><span class="key">01</span> Overview</a>
+      <a href="#" :class="{active: view==='inventory'}"  @click.prevent="view='inventory'"><span class="key">02</span> Inventory</a>
+      <a href="#" :class="{active: view==='purchases'}"  @click.prevent="view='purchases'"><span class="key">03</span> Purchases</a>
+      <a href="#" :class="{active: view==='expenses'}"   @click.prevent="view='expenses'"><span class="key">04</span> Expenses</a>
+      <a href="#" :class="{active: view==='history'}"    @click.prevent="view='history'"><span class="key">05</span> Activity Log</a>
+    </nav>
+
+    <div class="section-label">Intelligence</div>
+    <nav>
+      <a href="#" :class="{active: view==='assistant'}" @click.prevent="view='assistant'"><span class="key">AI</span> Assistant</a>
+    </nav>
+
+    <div class="foot">
+      <div class="row"><span>env</span><span>production</span></div>
+      <div class="row"><span>region</span><span>sioux-city-ia</span></div>
+      <div class="row"><span>status</span><span class="ok">● online</span></div>
+      <div class="row"><span>build</span><span>v1.0.0</span></div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- ============ DASHBOARD ============ -->
+    <section x-show="view==='dashboard'" x-data="dashboardApp()" x-init="init()" x-cloak>
+      <div class="topbar">
+        <div>
+          <h1><span class="crumb">wilson</span><span class="sep">/</span><span>overview</span></h1>
+          <div class="sub">Real-time operational telemetry · Sioux City plant</div>
+        </div>
+        <div class="actions">
+          <span class="status-dot"><span class="d"></span> LIVE</span>
+          <button class="btn" @click="$root.view='assistant'">Query AI</button>
+        </div>
+      </div>
+
+      <div class="content">
+
+        <div x-show="!kpi" class="empty">Loading telemetry…</div>
+
+        <template x-if="kpi">
+          <div>
+            <!-- KPIs -->
+            <div class="kpi-grid">
+              <div class="kpi">
+                <div class="label">Inventory Value</div>
+                <div class="value" x-text="fmtMoney(kpi.inventory_value)"></div>
+                <div class="meta"><span class="num" x-text="fmtInt(kpi.total_units) + ' u'"></span><span class="num" x-text="kpi.total_skus + ' skus'"></span></div>
+              </div>
+              <div class="kpi">
+                <div class="label">Purchases MTD</div>
+                <div class="value" x-text="fmtMoney(kpi.purchases_mtd)"></div>
+                <div class="meta">today<span class="num" x-text="fmtMoney(kpi.purchases_today)"></span></div>
+              </div>
+              <div class="kpi">
+                <div class="label">Expenses MTD</div>
+                <div class="value" x-text="fmtMoney(kpi.expenses_mtd)"></div>
+                <div class="meta">today<span class="num" x-text="fmtMoney(kpi.expenses_today)"></span></div>
+              </div>
+              <div class="kpi">
+                <div class="label">Stock Alerts</div>
+                <div class="value" :style="kpi.low_stock_count > 0 ? 'color:var(--red);' : 'color:var(--green);'" x-text="String(kpi.low_stock_count).padStart(2,'0')"></div>
+                <div class="meta" x-text="kpi.low_stock_count > 0 ? 'below minimum threshold' : 'all skus nominal'"></div>
+              </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="panels">
+              <div class="panel">
+                <div class="panel-h">
+                  <h3>Cashflow · trailing 6 months</h3>
+                  <span class="meta">purchases vs expenses</span>
+                </div>
+                <div style="height:260px;"><canvas id="trendChart"></canvas></div>
+              </div>
+              <div class="panel">
+                <div class="panel-h">
+                  <h3>Inventory by category</h3>
+                  <span class="meta">by value</span>
+                </div>
+                <div style="height:260px;"><canvas id="catChart"></canvas></div>
+              </div>
+            </div>
+
+            <!-- Tables -->
+            <div class="panels eq">
+              <div class="panel">
+                <div class="panel-h">
+                  <h3>Reorder required</h3>
+                  <span class="meta" x-text="lowStock.length + ' skus'"></span>
+                </div>
+                <template x-if="lowStock.length === 0">
+                  <div class="empty">All inventory above minimum threshold</div>
+                </template>
+                <table class="tbl" x-show="lowStock.length > 0">
+                  <thead><tr><th>SKU</th><th>Item</th><th>STK</th><th>MIN</th></tr></thead>
+                  <tbody>
+                    <template x-for="p in lowStock" :key="p.id">
+                      <tr>
+                        <td><span class="sku" x-text="p.sku"></span></td>
+                        <td x-text="p.name"></td>
+                        <td><span class="tag tag-low" x-text="p.stock"></span></td>
+                        <td><span class="num" x-text="p.min_stock"></span></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="panel">
+                <div class="panel-h">
+                  <h3>Recent purchase orders</h3>
+                  <button class="btn-ghost btn btn-sm" @click="$root.view='purchases'">View all</button>
+                </div>
+                <table class="tbl">
+                  <thead><tr><th>PO</th><th>Vendor</th><th>Total</th><th>Date</th></tr></thead>
+                  <tbody>
+                    <template x-for="p in recentPurchases" :key="p.id">
+                      <tr>
+                        <td><span class="sku" x-text="p.po_number"></span></td>
+                        <td x-text="p.vendor"></td>
+                        <td><span class="num-strong" x-text="fmtMoney(p.total)"></span></td>
+                        <td><span class="num" x-text="fmtDate(p.date)"></span></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ============ INVENTORY ============ -->
+    <section x-show="view==='inventory'" x-data="inventoryApp()" x-init="init()" x-cloak>
+      <div class="topbar">
+        <div>
+          <h1><span class="crumb">wilson</span><span class="sep">/</span><span>inventory</span></h1>
+          <div class="sub">SKU registry · stock levels · unit costs</div>
+        </div>
+        <button class="btn btn-primary" @click="open(null)">New SKU</button>
+      </div>
+
+      <div class="toolbar">
+        <input class="input mono" placeholder="filter sku or item…" x-model="q" @input.debounce.300ms="load()">
+        <select class="select mono" style="max-width:240px" x-model="category" @change="load()">
+          <option value="">all categories</option>
+          <template x-for="c in categories" :key="c"><option :value="c" x-text="c"></option></template>
+        </select>
+        <label class="check"><input type="checkbox" x-model="lowOnly" @change="load()"> Low stock only</label>
+        <span class="count" x-text="items.length + ' rows'"></span>
+      </div>
+
+      <div class="content" style="padding-top:0;">
+        <div class="panel standalone" style="padding:0;">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>SKU</th><th>Item</th><th>Category</th><th>Line</th>
+                <th>Stock</th><th>Cost</th><th>Value</th><th>Location</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="p in items" :key="p.id">
+                <tr>
+                  <td><span class="sku" x-text="p.sku"></span></td>
+                  <td x-text="p.name"></td>
+                  <td><span class="num" x-text="p.category"></span></td>
+                  <td><span class="tag tag-line" x-show="p.trailer_line" x-text="p.trailer_line"></span></td>
+                  <td><span class="tag" :class="isLow(p) ? 'tag-low' : 'tag-ok'" x-text="p.stock + ' / ' + p.min_stock"></span></td>
+                  <td><span class="num" x-text="fmtMoney(p.unit_cost)"></span></td>
+                  <td><span class="num-strong" x-text="fmtMoney(value(p))"></span></td>
+                  <td><span class="num" x-text="p.location || '—'" style="color:var(--dim);"></span></td>
+                  <td style="text-align:right;white-space:nowrap;">
+                    <button class="btn btn-sm" @click="open(p)">edit</button>
+                    <button class="btn btn-sm btn-danger" @click="remove(p.id)">del</button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div x-show="items.length === 0" class="empty">No matching rows</div>
+        </div>
+      </div>
+
+      <!-- Modal -->
+      <div class="modal-bg" x-show="showModal" @click.self="showModal=false" x-cloak>
+        <div class="modal">
+          <div class="modal-h">
+            <h3 x-text="editing ? 'edit sku' : 'new sku'"></h3>
+            <span class="close" @click="showModal=false">×</span>
+          </div>
+          <div class="modal-body">
+            <div class="row">
+              <div class="field"><label>SKU</label><input class="input mono" x-model="form.sku" :disabled="editing"></div>
+              <div class="field"><label>Name</label><input class="input" x-model="form.name"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Category</label>
+                <input class="input" x-model="form.category" list="cat-opts">
+                <datalist id="cat-opts">
+                  <template x-for="c in categories" :key="c"><option :value="c"></option></template>
+                </datalist>
+              </div>
+              <div class="field"><label>Trailer line</label><input class="input" x-model="form.trailer_line" placeholder="Silverstar, Pacesetter…"></div>
+            </div>
+            <div class="row-3">
+              <div class="field"><label>Unit cost</label><input class="input mono" type="number" step="0.01" x-model.number="form.unit_cost"></div>
+              <div class="field"><label>Stock</label><input class="input mono" type="number" x-model.number="form.stock"></div>
+              <div class="field"><label>Min stock</label><input class="input mono" type="number" x-model.number="form.min_stock"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Location</label><input class="input" x-model="form.location"></div>
+              <div class="field"><label>Supplier</label><input class="input" x-model="form.supplier"></div>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn" @click="showModal=false">Cancel</button>
+            <button class="btn btn-primary" @click="save()" x-text="editing ? 'save' : 'create'"></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PURCHASES ============ -->
+    <section x-show="view==='purchases'" x-data="purchasesApp()" x-init="init()" x-cloak>
+      <div class="topbar">
+        <div>
+          <h1><span class="crumb">wilson</span><span class="sep">/</span><span>purchases</span></h1>
+          <div class="sub">Vendor orders · stock intake</div>
+        </div>
+        <button class="btn btn-primary" @click="open()">New PO</button>
+      </div>
+
+      <div class="content">
+        <div class="panel standalone" style="padding:0;">
+          <table class="tbl">
+            <thead><tr><th>PO</th><th>Vendor</th><th>Lines</th><th>Total</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>
+              <template x-for="p in items" :key="p.id">
+                <tr>
+                  <td><span class="sku" x-text="p.po_number"></span></td>
+                  <td x-text="p.vendor"></td>
+                  <td><span class="num" x-text="p.items.length"></span></td>
+                  <td><span class="num-strong" x-text="fmtMoney(p.total)"></span></td>
+                  <td><span class="tag tag-ok" x-text="p.status"></span></td>
+                  <td><span class="num" x-text="fmtDate(p.date)"></span></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div x-show="items.length === 0" class="empty">No purchase orders</div>
+        </div>
+      </div>
+
+      <!-- Modal -->
+      <div class="modal-bg" x-show="showModal" @click.self="showModal=false" x-cloak>
+        <div class="modal lg">
+          <div class="modal-h">
+            <h3>new purchase order</h3>
+            <span class="close" @click="showModal=false">×</span>
+          </div>
+          <div class="modal-body">
+            <div class="row">
+              <div class="field"><label>PO #</label><input class="input mono" x-model="form.po_number"></div>
+              <div class="field"><label>Vendor</label>
+                <input class="input" x-model="form.vendor" list="vendor-opts">
+                <datalist id="vendor-opts">
+                  <template x-for="v in vendors" :key="v"><option :value="v"></option></template>
+                </datalist>
+              </div>
+            </div>
+            <div class="field"><label>Notes</label><textarea class="textarea" x-model="form.notes" rows="2"></textarea></div>
+
+            <label style="font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--dim);display:block;margin:14px 0 8px;text-transform:uppercase;letter-spacing:.08em;">Line items</label>
+            <template x-for="(line, i) in form.items" :key="i">
+              <div style="display:grid; grid-template-columns: 2fr 90px 110px auto; gap: 8px; align-items:end; margin-bottom:8px;">
+                <div class="field" style="margin:0">
+                  <select class="select mono" x-model.number="line.product_id" @change="onProdChange(line)">
+                    <template x-for="p in products" :key="p.id">
+                      <option :value="p.id" x-text="p.sku + ' — ' + p.name"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="field" style="margin:0"><input class="input mono" type="number" x-model.number="line.quantity" min="1"></div>
+                <div class="field" style="margin:0"><input class="input mono" type="number" step="0.01" x-model.number="line.unit_cost"></div>
+                <button class="btn btn-sm btn-danger" @click="rmLine(i)" style="margin-bottom:0">×</button>
+              </div>
+            </template>
+            <button class="btn btn-sm" @click="addLine()" style="margin-top:4px">+ line</button>
+
+            <div style="text-align:right;margin-top:18px;font-family:var(--mono);font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;">
+              total <span style="color:var(--text);font-size:18px;font-weight:600;margin-left:10px;" x-text="fmtMoney(total())"></span>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn" @click="showModal=false">Cancel</button>
+            <button class="btn btn-primary" @click="save()">Register</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ EXPENSES ============ -->
+    <section x-show="view==='expenses'" x-data="expensesApp()" x-init="init()" x-cloak>
+      <div class="topbar">
+        <div>
+          <h1><span class="crumb">wilson</span><span class="sep">/</span><span>expenses</span></h1>
+          <div class="sub">Operating &amp; administrative spend</div>
+        </div>
+        <button class="btn btn-primary" @click="open()">New Expense</button>
+      </div>
+
+      <div class="content">
+        <div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <div class="kpi">
+            <div class="label">Month to date</div>
+            <div class="value" x-text="fmtMoney(monthTotal())"></div>
+            <div class="meta">accumulated</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Today</div>
+            <div class="value" x-text="fmtMoney(todayTotal())"></div>
+            <div class="meta">intraday spend</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Records</div>
+            <div class="value" x-text="String(items.length).padStart(3,'0')"></div>
+            <div class="meta">historical entries</div>
+          </div>
+        </div>
+
+        <div class="toolbar" style="border:1px solid var(--line);">
+          <select class="select mono" style="max-width:240px" x-model="filter" @change="load()">
+            <option value="">all categories</option>
+            <template x-for="c in categories" :key="c"><option :value="c" x-text="c"></option></template>
+          </select>
+          <span class="count" x-text="items.length + ' rows'"></span>
+        </div>
+
+        <div class="panel standalone" style="padding:0;border-top:none;">
+          <table class="tbl">
+            <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Paid to</th><th>Amount</th></tr></thead>
+            <tbody>
+              <template x-for="e in items" :key="e.id">
+                <tr>
+                  <td><span class="num" x-text="fmtDateTime(e.date)"></span></td>
+                  <td><span class="num" x-text="e.category"></span></td>
+                  <td x-text="e.description"></td>
+                  <td><span class="num" x-text="e.paid_to || '—'" style="color:var(--dim);"></span></td>
+                  <td><span class="num-strong" x-text="fmtMoney(e.amount)"></span></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div x-show="items.length === 0" class="empty">No expense records</div>
+        </div>
+      </div>
+
+      <div class="modal-bg" x-show="showModal" @click.self="showModal=false" x-cloak>
+        <div class="modal">
+          <div class="modal-h">
+            <h3>new expense</h3>
+            <span class="close" @click="showModal=false">×</span>
+          </div>
+          <div class="modal-body">
+            <div class="row">
+              <div class="field"><label>Category</label>
+                <select class="select" x-model="form.category">
+                  <template x-for="c in presetCats" :key="c"><option :value="c" x-text="c"></option></template>
+                </select>
+              </div>
+              <div class="field"><label>Amount</label><input class="input mono" type="number" step="0.01" x-model.number="form.amount"></div>
+            </div>
+            <div class="field"><label>Description</label><input class="input" x-model="form.description"></div>
+            <div class="field"><label>Paid to</label><input class="input" x-model="form.paid_to"></div>
+            <div class="field"><label>Notes</label><textarea class="textarea" x-model="form.notes" rows="2"></textarea></div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn" @click="showModal=false">Cancel</button>
+            <button class="btn btn-primary" @click="save()">Register</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ HISTORY ============ -->
+    <section x-show="view==='history'" x-data="historyApp()" x-init="init()" x-cloak>
+      <div class="topbar">
+        <div>
+          <h1><span class="crumb">wilson</span><span class="sep">/</span><span>activity</span></h1>
+          <div class="sub">Chronological event stream</div>
+        </div>
+        <select class="select mono" style="max-width:200px" x-model="filter">
+          <option value="all">all events</option>
+          <option value="movement">stock movements</option>
+          <option value="purchase">purchases</option>
+          <option value="expense">expenses</option>
+        </select>
+      </div>
+
+      <div class="content">
+        <div class="panel standalone" style="padding:0;">
+          <div class="timeline">
+            <template x-for="ev in visible" :key="ev.date + ev.title">
+              <div class="ev" :data-type="ev.type">
+                <span class="t-stamp" x-text="fmtDateTime(ev.date)"></span>
+                <span class="t-type" x-text="typeLabel(ev.type)"></span>
+                <span class="t-body" x-text="cleanTitle(ev.title)"></span>
+                <span class="t-sub" x-text="ev.subtitle"></span>
+              </div>
+            </template>
+            <div x-show="visible.length === 0" class="empty">No events</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ASSISTANT ============ -->
+    <section x-show="view==='assistant'" x-data="assistantApp()" x-cloak>
+      <div class="topbar">
+        <div>
+          <h1><span class="crumb">wilson</span><span class="sep">/</span><span>assistant</span></h1>
+          <div class="sub">Natural language interface over operational data</div>
+        </div>
+        <span class="status-dot"><span class="d"></span> CONNECTED</span>
+      </div>
+
+      <div class="content">
+        <div class="panel standalone" style="padding:14px;">
+          <div class="chat-wrap">
+            <div class="chat-msgs">
+              <template x-for="(m, i) in messages" :key="i">
+                <div class="msg" :class="m.role">
+                  <div class="av" x-text="m.role==='bot' ? 'AI' : 'YOU'"></div>
+                  <div class="bubble" x-html="mdLite(m.text)"></div>
+                </div>
+              </template>
+              <div x-show="loading" class="msg bot">
+                <div class="av">AI</div>
+                <div class="bubble"><span class="spinner"></span> &nbsp;processing query…</div>
+              </div>
+            </div>
+            <div>
+              <div class="suggested">
+                <template x-for="s in suggestions" :key="s">
+                  <span class="pill" @click="send(s)" x-text="s"></span>
+                </template>
+              </div>
+              <div class="chat-input">
+                <input class="input" placeholder="ask anything about inventory, purchases, expenses…" x-model="input" @keydown.enter="send()">
+                <button class="btn btn-primary" @click="send()" :disabled="loading || !input.trim()">Send</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<style>[x-cloak] { display: none !important; }</style>
+</body>
+</html>
