@@ -1,6 +1,99 @@
 // Wilson Trailers — Inventory AI frontend
 const API = '';
 
+// ====================== Global utilities ======================
+
+/** Count-up animation: animates element textContent from current to target. */
+function countUp(el, to, opts = {}) {
+  if (!el) return;
+  const duration = opts.duration || 1100;
+  const prefix = opts.prefix || '';
+  const suffix = opts.suffix || '';
+  const decimals = opts.decimals || 0;
+  const from = opts.from !== undefined ? opts.from : 0;
+  const start = performance.now();
+  const ease = t => 1 - Math.pow(1 - t, 3); // easeOutCubic
+  const tick = now => {
+    const t = Math.min(1, (now - start) / duration);
+    const v = from + (to - from) * ease(t);
+    el.textContent = prefix + v.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }) + suffix;
+    if (t < 1) requestAnimationFrame(tick);
+    else el.textContent = prefix + to.toLocaleString('en-US', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }) + suffix;
+  };
+  requestAnimationFrame(tick);
+}
+
+/** Ripple click effect — attach to any element. */
+function addRipple(ev) {
+  const el = ev.currentTarget;
+  const rect = el.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  const ripple = document.createElement('span');
+  ripple.className = 'ripple';
+  ripple.style.width = ripple.style.height = size + 'px';
+  ripple.style.left = (ev.clientX - rect.left - size/2) + 'px';
+  ripple.style.top  = (ev.clientY - rect.top  - size/2) + 'px';
+  el.appendChild(ripple);
+  setTimeout(() => ripple.remove(), 600);
+}
+
+/** Auto-attach ripple to all .btn, sidebar a, .pill. */
+document.addEventListener('click', (ev) => {
+  const target = ev.target.closest('.btn, .sidebar a, .pill, .splash-continue');
+  if (target) addRipple({ currentTarget: target, clientX: ev.clientX, clientY: ev.clientY });
+}, true);
+
+/** Global toast store via Alpine. */
+document.addEventListener('alpine:init', () => {
+  if (window.Alpine) {
+    Alpine.store('toasts', {
+      items: [],
+      _id: 1,
+      push(opts) {
+        const id = this._id++;
+        const toast = {
+          id,
+          type: opts.type || 'info',
+          title: opts.title || '',
+          msg: opts.msg || '',
+          life: opts.life || 4000,
+        };
+        this.items.push(toast);
+        setTimeout(() => this.dismiss(id), toast.life);
+      },
+      dismiss(id) {
+        const idx = this.items.findIndex(t => t.id === id);
+        if (idx === -1) return;
+        // Mark leaving so CSS transition runs
+        this.items[idx]._leaving = true;
+        setTimeout(() => {
+          const i = this.items.findIndex(t => t.id === id);
+          if (i !== -1) this.items.splice(i, 1);
+        }, 250);
+      },
+      success(title, msg) { this.push({type:'success', title, msg}); },
+      error(title, msg)   { this.push({type:'error',   title, msg, life: 6000}); },
+      info(title, msg)    { this.push({type:'info',    title, msg}); },
+      warn(title, msg)    { this.push({type:'warn',    title, msg, life: 5000}); },
+    });
+  }
+});
+
+/** Helper to access toast store from anywhere. */
+function toast(opts) {
+  if (window.Alpine && Alpine.store('toasts')) Alpine.store('toasts').push(opts);
+}
+function toastSuccess(title, msg) { toast({ type:'success', title, msg }); }
+function toastError(title, msg)   { toast({ type:'error',   title, msg, life: 6000 }); }
+function toastInfo(title, msg)    { toast({ type:'info',    title, msg }); }
+function toastWarn(title, msg)    { toast({ type:'warn',    title, msg, life: 5000 }); }
+
 const fmtMoney = (n) => '$' + (Number(n)||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
 const fmtInt = (n) => (Number(n)||0).toLocaleString('en-US');
 const fmtDate = (iso) => {
@@ -317,16 +410,18 @@ function inventoryApp() {
         });
         if (!r.ok) {
           const err = await r.json();
-          alert('Failed: ' + (err.detail || JSON.stringify(err)));
+          toastError('Withdraw failed', err.detail || 'Could not decrement stock');
           return;
         }
         const data = await r.json();
-        this.toast = `${data.operator} pulled ${this.withdrawForm.quantity} x ${data.sku} - ${this.withdrawForm.reason}. New stock: ${data.new_stock}`;
-        setTimeout(() => this.toast = null, 5500);
+        toastSuccess(
+          `${data.sku} - ${this.withdrawForm.quantity} units withdrawn`,
+          `${data.operator} · ${this.withdrawForm.reason} · new stock: ${data.new_stock}`
+        );
         this.showWithdraw = false;
         await this.load();
         this.movements = await api('/api/movements/recent?limit=8');
-      } catch (e) { alert(e.message); }
+      } catch (e) { toastError('Network error', e.message); }
     },
     isLow(p) { return p.stock <= p.min_stock; },
     value(p) { return p.stock * p.unit_cost; },
@@ -451,19 +546,22 @@ function productionApp() {
         });
         if (!r.ok) {
           const err = await r.json();
-          alert('Production failed: ' + (typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail)));
+          const msg = typeof err.detail === 'string' ? err.detail : (err.detail?.error || 'Production failed');
+          toastError('Production failed', msg);
           this.producing = false;
           return;
         }
         const wo = await r.json();
-        this.toast = `${wo.wo_number} · ${wo.trailer_line} × ${wo.quantity} · material ${fmtMoney(wo.material_cost)}`;
-        setTimeout(() => this.toast = null, 5000);
+        toastSuccess(
+          `${wo.wo_number} registered`,
+          `${wo.trailer_line} × ${wo.quantity} · material ${fmtMoney(wo.material_cost)}`
+        );
         // Refresh
         this.boms = await api('/api/bom');
         this.workOrders = await api('/api/work-orders?limit=20');
         await this.selectLine(this.selected);
       } catch (e) {
-        alert('Error: ' + e.message);
+        toastError('Network error', e.message);
       } finally {
         this.producing = false;
       }

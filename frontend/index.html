@@ -6,11 +6,26 @@
 <title>Wilson Trailers // Inventory AI</title>
 <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Oswald:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/assets/styles.css?v=20260513d">
+<link rel="stylesheet" href="/static/assets/styles.css?v=20260513e">
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
-<script src="/static/assets/app.js?v=20260513d"></script>
+<script src="/static/assets/app.js?v=20260513e"></script>
 </head>
 <body x-data="appRoot()" x-init="boot()">
+
+<!-- ============ TOAST STACK ============ -->
+<div class="toast-stack">
+  <template x-for="t in $store.toasts.items" :key="t.id">
+    <div class="toast" :class="[t.type, t._leaving ? 'leave' : '']" :style="`--toast-life: ${t.life}ms`">
+      <span class="ico" x-text="t.type === 'success' ? '✓' : t.type === 'error' ? '!' : t.type === 'warn' ? '⚠' : 'i'"></span>
+      <div class="body">
+        <div class="title" x-text="t.title"></div>
+        <div class="msg" x-text="t.msg"></div>
+      </div>
+      <span class="close" @click="$store.toasts.dismiss(t.id)">×</span>
+      <div class="progress"></div>
+    </div>
+  </template>
+</div>
 
 <!-- ============ SPLASH SCREEN (visible by default, faded out via class) ============ -->
 <div class="splash" :class="{'splash-done': !splash}">
@@ -144,7 +159,7 @@
   <main class="main">
 
     <!-- ============ DASHBOARD ============ -->
-    <section x-show="view==='dashboard'" x-data="dashboardApp()" x-init="init()" x-cloak>
+    <section x-show="view==='dashboard'" x-data="dashboardApp()" x-init="init()" x-transition:enter="view-section" x-cloak>
       <div class="topbar">
         <div>
           <h1><span class="crumb">wilson</span><span class="sep">/</span><span>overview</span></h1>
@@ -158,29 +173,49 @@
 
       <div class="content">
 
-        <div x-show="!kpi" class="empty">Loading telemetry…</div>
+        <!-- Skeleton state while data loads -->
+        <div x-show="!kpi" x-cloak>
+          <div class="kpi-grid">
+            <template x-for="i in 4" :key="i">
+              <div class="kpi">
+                <span class="skel skel-line" style="width:50%; margin-bottom:12px;"></span>
+                <span class="skel skel-num"></span>
+                <span class="skel skel-line" style="width:40%; margin-top:8px;"></span>
+              </div>
+            </template>
+          </div>
+          <div class="panels">
+            <div class="panel"><div class="panel-h"><span class="skel skel-line" style="width:200px;"></span></div><div style="height:200px;" class="skel"></div></div>
+            <div class="panel"><div class="panel-h"><span class="skel skel-line" style="width:160px;"></span></div><div style="height:200px;" class="skel"></div></div>
+          </div>
+        </div>
 
-        <div x-show="kpi">
-          <!-- KPIs -->
+        <div x-show="kpi" class="view-section">
+          <!-- KPIs with count-up animation -->
           <div class="kpi-grid" id="tour-kpis">
             <div class="kpi">
               <div class="label">Inventory Value</div>
-              <div class="value" x-text="kpi ? fmtMoney(kpi.inventory_value) : '—'"></div>
-              <div class="meta"><span class="num" x-text="kpi ? fmtInt(kpi.total_units) + ' u' : ''"></span><span class="num" x-text="kpi ? kpi.total_skus + ' skus' : ''"></span></div>
+              <div class="value counter" x-init="$watch('kpi', v => v && countUp($el, v.inventory_value, {prefix:'$', decimals:2}))">—</div>
+              <div class="meta">
+                <span class="num counter" x-init="$watch('kpi', v => v && countUp($el, v.total_units, {suffix:' u'}))"></span>
+                <span class="num counter" x-init="$watch('kpi', v => v && countUp($el, v.total_skus, {suffix:' skus'}))"></span>
+              </div>
             </div>
             <div class="kpi">
               <div class="label">Purchases MTD</div>
-              <div class="value" x-text="kpi ? fmtMoney(kpi.purchases_mtd) : '—'"></div>
-              <div class="meta">today<span class="num" x-text="kpi ? fmtMoney(kpi.purchases_today) : ''"></span></div>
+              <div class="value counter" x-init="$watch('kpi', v => v && countUp($el, v.purchases_mtd, {prefix:'$', decimals:2}))">—</div>
+              <div class="meta">today<span class="num counter" x-init="$watch('kpi', v => v && countUp($el, v.purchases_today, {prefix:'$', decimals:2}))"></span></div>
             </div>
             <div class="kpi">
               <div class="label">Expenses MTD</div>
-              <div class="value" x-text="kpi ? fmtMoney(kpi.expenses_mtd) : '—'"></div>
-              <div class="meta">today<span class="num" x-text="kpi ? fmtMoney(kpi.expenses_today) : ''"></span></div>
+              <div class="value counter" x-init="$watch('kpi', v => v && countUp($el, v.expenses_mtd, {prefix:'$', decimals:2}))">—</div>
+              <div class="meta">today<span class="num counter" x-init="$watch('kpi', v => v && countUp($el, v.expenses_today, {prefix:'$', decimals:2}))"></span></div>
             </div>
             <div class="kpi">
               <div class="label">Stock Alerts</div>
-              <div class="value" :style="kpi && kpi.low_stock_count > 0 ? 'color:var(--red);' : 'color:var(--green);'" x-text="kpi ? String(kpi.low_stock_count).padStart(2,'0') : '—'"></div>
+              <div class="value counter"
+                   :style="kpi && kpi.low_stock_count > 0 ? 'color:var(--red);' : 'color:var(--green);'"
+                   x-init="$watch('kpi', v => { if(v){ $el.textContent = String(v.low_stock_count).padStart(2,'0'); $el.classList.add('value-flash'); }})">—</div>
               <div class="meta" x-text="kpi && kpi.low_stock_count > 0 ? 'below minimum threshold' : 'all skus nominal'"></div>
             </div>
           </div>
@@ -276,7 +311,7 @@
     </section>
 
     <!-- ============ INVENTORY ============ -->
-    <section x-show="view==='inventory'" x-data="inventoryApp()" x-init="init()" x-cloak>
+    <section x-show="view==='inventory'" x-data="inventoryApp()" x-init="init()" x-transition:enter="view-section" x-cloak>
       <div class="topbar">
         <div>
           <h1><span class="crumb">wilson</span><span class="sep">/</span><span>inventory</span></h1>
@@ -441,7 +476,7 @@
     </section>
 
     <!-- ============ PURCHASES ============ -->
-    <section x-show="view==='purchases'" x-data="purchasesApp()" x-init="init()" x-cloak>
+    <section x-show="view==='purchases'" x-data="purchasesApp()" x-init="init()" x-transition:enter="view-section" x-cloak>
       <div class="topbar">
         <div>
           <h1><span class="crumb">wilson</span><span class="sep">/</span><span>purchases</span></h1>
@@ -520,7 +555,7 @@
     </section>
 
     <!-- ============ EXPENSES ============ -->
-    <section x-show="view==='expenses'" x-data="expensesApp()" x-init="init()" x-cloak>
+    <section x-show="view==='expenses'" x-data="expensesApp()" x-init="init()" x-transition:enter="view-section" x-cloak>
       <div class="topbar">
         <div>
           <h1><span class="crumb">wilson</span><span class="sep">/</span><span>expenses</span></h1>
@@ -603,7 +638,7 @@
     </section>
 
     <!-- ============ PRODUCTION ============ -->
-    <section x-show="view==='production'" x-data="productionApp()" x-init="init()" x-cloak>
+    <section x-show="view==='production'" x-data="productionApp()" x-init="init()" x-transition:enter="view-section" x-cloak>
       <div class="topbar">
         <div>
           <h1><span class="crumb">wilson</span><span class="sep">/</span><span>production</span></h1>
@@ -697,7 +732,7 @@
     </section>
 
     <!-- ============ HISTORY ============ -->
-    <section x-show="view==='history'" x-data="historyApp()" x-init="init()" x-cloak>
+    <section x-show="view==='history'" x-data="historyApp()" x-init="init()" x-transition:enter="view-section" x-cloak>
       <div class="topbar">
         <div>
           <h1><span class="crumb">wilson</span><span class="sep">/</span><span>activity</span></h1>
