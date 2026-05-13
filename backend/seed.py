@@ -2,15 +2,12 @@
 Seed realistic Wilson Trailer Company inventory data.
 
 Wilson Trailer Co. (est. 1883, HQ Sioux City IA) manufactures:
-  - Livestock trailers (Silverstar, Ranch Hand, Silverstar Tri-axle)
-  - Grain/commodity trailers (Pacesetter, Pacesetter II)
-  - Flatbeds (Roadbrute, Commander, Cargo Commander)
-  - Belt trailers (Power Hauler)
+  - Livestock trailers: Silverstar, Ranch Hand
+  - Grain/commodity trailers: Pacesetter
+  - Flatbeds: Roadbrute, Commander
 
-SKUs below reflect typical inventory for an aluminum livestock/grain
-trailer manufacturer: aluminum extrusions, axles, suspensions, brakes,
-lighting, livestock-specific gates/floors, grain-specific tarps/traps,
-and standard hardware.
+Includes Bill-of-Materials so that producing 1 trailer of a given line
+auto-consumes the correct number of part SKUs from inventory.
 """
 import random
 from datetime import datetime, timedelta
@@ -113,7 +110,7 @@ PRODUCTS = [
     ("WT-CPL-804", "Glad hand red EM SAF-T", "Acoplamientos", None, 18.00, 240, 60, "WH-H — Bin 3", "Phillips Industries"),
     ("WT-CPL-805", "Glad hand blue SR SAF-T", "Acoplamientos", None, 18.00, 240, 60, "WH-H — Bin 3", "Phillips Industries"),
 
-    # === NEUMÁTICO / AIR SYSTEMS ===
+    # === NEUMÁTICO ===
     ("WT-AIR-900", "Manguera nylon 1/2\" rojo DOT (100ft)", "Sistemas Neumáticos", None, 128.00, 24, 10, "WH-C — Rack 8", "Parker Hannifin"),
     ("WT-AIR-901", "Manguera nylon 1/2\" azul DOT (100ft)", "Sistemas Neumáticos", None, 128.00, 24, 10, "WH-C — Rack 8", "Parker Hannifin"),
     ("WT-AIR-902", "Tanque aire aluminio 2200ci", "Sistemas Neumáticos", None, 245.00, 18, 6, "WH-C — Rack 9", "Haldex Group"),
@@ -121,19 +118,19 @@ PRODUCTS = [
     ("WT-AIR-904", "Fitting brass Push-Lok 1/2\" (set 25)", "Sistemas Neumáticos", None, 38.00, 84, 24, "WH-C — Bin 10", "Parker Hannifin"),
 
     # === PINTURA Y FINISH ===
-    ("WT-PNT-A00", "Pintura Champion Red Wilson 5gal", "Pintura y Acabados", None, 285.00, 3, 6, "WH-F — Pintura", "Sherwin Williams"),
-    ("WT-PNT-A01", "Pintura Wilson White 5gal", "Pintura y Acabados", None, 265.00, 8, 6, "WH-F — Pintura", "Sherwin Williams"),
-    ("WT-PNT-A02", "Primer epóxico 2K 1gal", "Pintura y Acabados", None, 78.00, 24, 10, "WH-F — Pintura", "PPG Industries"),
-    ("WT-PNT-A03", "Clearcoat poliuretano 1gal", "Pintura y Acabados", None, 92.00, 18, 8, "WH-F — Pintura", "PPG Industries"),
-    ("WT-PNT-A04", "Cinta reflectiva 3M DOT-C2 (150ft)", "Pintura y Acabados", None, 145.00, 32, 12, "WH-F — Rack 1", "3M"),
+    ("WT-PNT-A00", "Pintura Champion Red Wilson 5gal", "Pintura y Acabados", None, 285.00, 18, 6, "WH-F — Pintura", "Sherwin Williams"),
+    ("WT-PNT-A01", "Pintura Wilson White 5gal", "Pintura y Acabados", None, 265.00, 22, 6, "WH-F — Pintura", "Sherwin Williams"),
+    ("WT-PNT-A02", "Primer epóxico 2K 1gal", "Pintura y Acabados", None, 78.00, 32, 10, "WH-F — Pintura", "PPG Industries"),
+    ("WT-PNT-A03", "Clearcoat poliuretano 1gal", "Pintura y Acabados", None, 92.00, 28, 8, "WH-F — Pintura", "PPG Industries"),
+    ("WT-PNT-A04", "Cinta reflectiva 3M DOT-C2 (150ft)", "Pintura y Acabados", None, 145.00, 42, 12, "WH-F — Rack 1", "3M"),
     ("WT-PNT-A05", "Decal Wilson Trailers logo grande", "Pintura y Acabados", None, 38.00, 124, 30, "WH-F — Bin 2", "Wilson Mill Sioux City"),
     ("WT-PNT-A06", "Sellador 3M VHB doble cara (roll)", "Pintura y Acabados", None, 68.00, 42, 14, "WH-F — Bin 3", "3M"),
 
-    # === HARDWARE / FASTENERS ===
+    # === HARDWARE ===
     ("WT-HRD-B00", "Tornillería kit ensamblaje Silverstar", "Hardware", "Silverstar", 145.00, 56, 16, "WH-E — Rack 5", "Fastenal"),
     ("WT-HRD-B01", "Tornillería kit ensamblaje Pacesetter", "Hardware", "Pacesetter", 168.00, 32, 12, "WH-E — Rack 5", "Fastenal"),
-    ("WT-HRD-B02", "Bisagra puerta trasera HD inox", "Hardware", "Silverstar", 92.00, 4, 12, "WH-E — Rack 5", "Wilson Mill Sioux City"),
-    ("WT-HRD-B03", "Cerradura compuerta acero inox cam-lock", "Hardware", "Pacesetter", 165.00, 22, 8, "WH-E — Rack 6", "Buyers Products"),
+    ("WT-HRD-B02", "Bisagra puerta trasera HD inox", "Hardware", "Silverstar", 92.00, 28, 12, "WH-E — Rack 5", "Wilson Mill Sioux City"),
+    ("WT-HRD-B03", "Cerradura compuerta cam-lock inox", "Hardware", "Pacesetter", 165.00, 22, 8, "WH-E — Rack 6", "Buyers Products"),
     ("WT-HRD-B04", "Remache estructural 1/4\" inox (caja 500)", "Hardware", None, 78.00, 96, 30, "WH-E — Bin 7", "Avdel / Stanley"),
     ("WT-HRD-B05", "Remache 3/16\" aluminio (caja 1000)", "Hardware", None, 42.00, 168, 40, "WH-E — Bin 7", "POP / Stanley"),
     ("WT-HRD-B06", "Mud flap reinforced 24x30 Wilson logo", "Hardware", None, 28.50, 280, 60, "WH-E — Bin 8", "Buyers Products"),
@@ -151,8 +148,7 @@ VENDORS = [
     "Fastenal", "Buyers Products", "Parker Hannifin",
     "Shur-Co LLC", "Aulick Industries", "Walinga Inc",
     "SAF-Holland", "Jost International", "Webb Wheel",
-    "Gunite", "MGM Brakes", "Kinedyne", "Firestone Industrial",
-    "Reyco Granning", "Monroe / Tenneco", "Accuride",
+    "Gunite", "MGM Brakes", "Kinedyne",
 ]
 
 EXPENSE_CATEGORIES = [
@@ -163,14 +159,14 @@ EXPENSE_CATEGORIES = [
     ("Gas natural", "Suministro hornos pintura + calefacción", 1800, 4400),
     ("Mantenimiento maquinaria", "Servicio prensa hidráulica + dobladoras", 450, 2800),
     ("Mantenimiento cabina pintura", "Servicio cabina + filtros HEPA", 380, 1850),
-    ("Combustible flota", "Diesel flota interna transferencia", 280, 1200),
+    ("Combustible flota", "Diesel flota interna", 280, 1200),
     ("Transporte interno", "Flete entre plantas (Sioux/Yankton/Moberly)", 850, 3400),
     ("Suministros oficina", "Material consumible administrativo", 120, 580),
     ("Suministros taller — consumibles", "Discos corte, electrodos, abrasivos", 420, 2200),
     ("EPP — Equipo protección", "Caretas soldar, guantes, botas, lentes", 285, 1400),
     ("Internet y telefonía", "Servicio mensual planta + oficinas", 380, 720),
     ("Seguros planta + flota", "Travelers Insurance prima mensual", 4200, 6800),
-    ("Capacitación", "Certificación soldadura AWS D1.2 aluminio", 600, 2400),
+    ("Capacitación", "Certificación AWS D1.2 aluminio", 600, 2400),
     ("Marketing", "Pauta digital + Mid-America Trucking Show", 900, 4500),
     ("R&D ingeniería", "Diseño nuevos modelos + prototipos", 1800, 7500),
 ]
@@ -180,14 +176,103 @@ PAID_TO_POOL = [
     "Sioux City Auto Parts", "United Rentals", "Office Depot",
     "Wells Fargo Bank", "Travelers Insurance", "ADP Payroll",
     "Northland Welding Supply", "Praxair", "Lincoln Electric",
-    "FedEx Freight", "Old Dominion Freight", "AB&T Trucking",
+    "FedEx Freight", "Old Dominion Freight",
     "Mid-America Trucking Show LLC", "Verizon Business",
     "Grainger Industrial Supply", "MSC Direct", "Nómina interna",
 ]
 
 
+# Bill-of-Materials por línea de tráiler (cantidades por UN tráiler).
+# Diseñado para que casi todas las partes de inventario participen.
+BOMS = {
+    "Silverstar": [
+        # Estructura aluminio
+        ("WT-ALU-002", 8), ("WT-ALU-005", 24), ("WT-ALU-006", 4),
+        ("WT-ALU-010", 6),
+        # Tren rodante
+        ("WT-AXL-101", 2), ("WT-SUS-111", 4), ("WT-SUS-112", 4),
+        ("WT-SUS-113", 4),
+        # Ruedas
+        ("WT-WHL-200", 8), ("WT-WHL-204", 8), ("WT-WHL-207", 1),
+        # Frenos
+        ("WT-BRK-300", 1), ("WT-BRK-302", 4), ("WT-BRK-304", 4),
+        ("WT-BRK-306", 4), ("WT-BRK-308", 1),
+        # Eléctrico
+        ("WT-ELE-400", 4), ("WT-ELE-401", 8), ("WT-ELE-403", 12),
+        ("WT-ELE-404", 2), ("WT-ELE-405", 1), ("WT-ELE-406", 1),
+        ("WT-ELE-408", 1),
+        # Livestock
+        ("WT-LIV-500", 1), ("WT-LIV-501", 2), ("WT-LIV-503", 1),
+        ("WT-LIV-505", 6), ("WT-LIV-507", 1),
+        # Couplings/aire
+        ("WT-CPL-800", 1), ("WT-CPL-801", 2), ("WT-CPL-804", 1),
+        ("WT-CPL-805", 1), ("WT-AIR-900", 1), ("WT-AIR-901", 1),
+        ("WT-AIR-902", 2), ("WT-AIR-904", 1),
+        # Pintura
+        ("WT-PNT-A00", 1), ("WT-PNT-A01", 0.5), ("WT-PNT-A02", 1),
+        ("WT-PNT-A03", 1), ("WT-PNT-A04", 1), ("WT-PNT-A05", 2),
+        # Hardware
+        ("WT-HRD-B00", 1), ("WT-HRD-B02", 4), ("WT-HRD-B04", 2),
+        ("WT-HRD-B05", 1), ("WT-HRD-B06", 4), ("WT-HRD-B07", 4),
+    ],
+    "Ranch Hand": [
+        ("WT-ALU-001", 6), ("WT-ALU-005", 16), ("WT-ALU-008", 8),
+        ("WT-AXL-103", 2), ("WT-SUS-110", 4), ("WT-SUS-113", 4),
+        ("WT-WHL-202", 8), ("WT-WHL-206", 8),
+        ("WT-BRK-302", 4), ("WT-BRK-304", 4), ("WT-BRK-306", 4),
+        ("WT-ELE-400", 4), ("WT-ELE-401", 6), ("WT-ELE-403", 10),
+        ("WT-ELE-405", 1), ("WT-ELE-408", 1),
+        ("WT-LIV-502", 1), ("WT-LIV-503", 1), ("WT-LIV-505", 4),
+        ("WT-CPL-800", 1), ("WT-CPL-801", 2), ("WT-CPL-804", 1),
+        ("WT-CPL-805", 1), ("WT-AIR-900", 1), ("WT-AIR-901", 1),
+        ("WT-AIR-902", 1),
+        ("WT-PNT-A00", 1), ("WT-PNT-A02", 1), ("WT-PNT-A04", 1),
+        ("WT-PNT-A05", 2),
+        ("WT-HRD-B04", 2), ("WT-HRD-B06", 4), ("WT-HRD-B07", 4),
+    ],
+    "Pacesetter": [
+        ("WT-ALU-003", 4), ("WT-ALU-007", 8), ("WT-ALU-008", 12),
+        ("WT-AXL-100", 3), ("WT-SUS-111", 6), ("WT-SUS-112", 6),
+        ("WT-WHL-200", 12), ("WT-WHL-204", 12),
+        ("WT-BRK-301", 1), ("WT-BRK-302", 6), ("WT-BRK-304", 6),
+        ("WT-BRK-307", 1), ("WT-BRK-308", 1),
+        ("WT-ELE-400", 4), ("WT-ELE-401", 10), ("WT-ELE-403", 14),
+        ("WT-ELE-405", 1), ("WT-ELE-408", 1),
+        ("WT-GRN-600", 2), ("WT-GRN-601", 1), ("WT-GRN-602", 1),
+        ("WT-GRN-603", 1), ("WT-GRN-604", 2), ("WT-GRN-605", 1),
+        ("WT-GRN-606", 4), ("WT-GRN-607", 1),
+        ("WT-CPL-800", 1), ("WT-CPL-801", 2), ("WT-CPL-804", 1),
+        ("WT-CPL-805", 1), ("WT-AIR-900", 1), ("WT-AIR-901", 1),
+        ("WT-AIR-902", 2),
+        ("WT-PNT-A00", 2), ("WT-PNT-A01", 1), ("WT-PNT-A02", 1),
+        ("WT-PNT-A04", 1), ("WT-PNT-A05", 2),
+        ("WT-HRD-B01", 1), ("WT-HRD-B03", 4), ("WT-HRD-B04", 2),
+    ],
+    "Roadbrute": [
+        ("WT-ALU-004", 4), ("WT-ALU-009", 12),
+        ("WT-AXL-102", 2), ("WT-SUS-111", 4), ("WT-SUS-113", 4),
+        ("WT-WHL-201", 4), ("WT-WHL-205", 4),
+        ("WT-BRK-301", 1), ("WT-BRK-303", 4), ("WT-BRK-305", 4),
+        ("WT-ELE-400", 4), ("WT-ELE-401", 8), ("WT-ELE-403", 10),
+        ("WT-ELE-405", 1), ("WT-ELE-408", 1),
+        ("WT-FLB-700", 18), ("WT-FLB-701", 1), ("WT-FLB-702", 8),
+        ("WT-FLB-703", 4), ("WT-FLB-704", 12),
+        ("WT-CPL-800", 1), ("WT-CPL-801", 2), ("WT-CPL-804", 1),
+        ("WT-CPL-805", 1), ("WT-AIR-900", 1), ("WT-AIR-901", 1),
+        ("WT-AIR-903", 2),
+        ("WT-PNT-A00", 1), ("WT-PNT-A02", 1), ("WT-PNT-A04", 1),
+        ("WT-PNT-A05", 2),
+        ("WT-HRD-B04", 2), ("WT-HRD-B06", 4), ("WT-HRD-B07", 4),
+        ("WT-HRD-B08", 1),
+    ],
+}
+
+
 def run():
     db = SessionLocal()
+    # wipe
+    db.query(models.WorkOrder).delete()
+    db.query(models.BOMLine).delete()
     db.query(models.StockMovement).delete()
     db.query(models.PurchaseItem).delete()
     db.query(models.Purchase).delete()
@@ -195,6 +280,7 @@ def run():
     db.query(models.Product).delete()
     db.commit()
 
+    # Products
     for sku, name, cat, line, cost, stock, mn, loc, sup in PRODUCTS:
         db.add(models.Product(
             sku=sku, name=name, category=cat, trailer_line=line,
@@ -204,11 +290,22 @@ def run():
     db.commit()
 
     products = db.query(models.Product).all()
+    by_sku = {p.sku: p for p in products}
+
+    # BoMs
+    for line, items in BOMS.items():
+        for sku, qty in items:
+            p = by_sku.get(sku)
+            if not p:
+                continue
+            db.add(models.BOMLine(trailer_line=line, product_id=p.id, quantity=qty))
+    db.commit()
+
     now = datetime.utcnow()
 
-    # Purchases — last 90 days
-    for i in range(42):
-        day_offset = random.randint(0, 90)
+    # Purchases — last 240 days (8 months) for richer charts
+    for i in range(160):
+        day_offset = random.randint(0, 240)
         date = now - timedelta(days=day_offset, hours=random.randint(0, 8))
         po = f"PO-2026-{1000 + i:04d}"
         vendor = random.choice(VENDORS)
@@ -220,10 +317,10 @@ def run():
         db.add(purchase)
         db.flush()
 
-        chosen = random.sample(products, k=random.randint(1, 5))
+        chosen = random.sample(products, k=random.randint(2, 6))
         total = 0.0
         for prod in chosen:
-            qty = random.randint(2, 50)
+            qty = random.randint(8, 80)
             cost = round(prod.unit_cost * random.uniform(0.92, 1.05), 2)
             line_total = round(qty * cost, 2)
             total += line_total
@@ -239,26 +336,9 @@ def run():
         purchase.total = round(total, 2)
     db.commit()
 
-    # Outbound — consumo producción
-    for _ in range(70):
-        day_offset = random.randint(0, 60)
-        date = now - timedelta(days=day_offset, hours=random.randint(0, 9))
-        prod = random.choice(products)
-        if prod.stock <= 1:
-            continue
-        qty = random.randint(1, max(1, min(8, prod.stock // 4)))
-        wo = f"WO-{random.randint(5000, 8999)}"
-        db.add(models.StockMovement(
-            date=date, product_id=prod.id,
-            movement_type="OUT", quantity=qty,
-            reason=f"Consumo producción {wo}", reference=wo,
-        ))
-        prod.stock = max(0, prod.stock - qty)
-    db.commit()
-
-    # Expenses — last 60 days
-    for _ in range(120):
-        day_offset = random.randint(0, 60)
+    # Expenses — last 240 days
+    for _ in range(380):
+        day_offset = random.randint(0, 240)
         date = now - timedelta(days=day_offset, hours=random.randint(8, 19))
         cat, desc, lo, hi = random.choice(EXPENSE_CATEGORIES)
         amount = round(random.uniform(lo, hi), 2)
@@ -269,10 +349,55 @@ def run():
         ))
     db.commit()
 
+    # Work orders — simulate historical trailer productions across 8 months
+    for i in range(30):
+        line = random.choice(list(BOMS.keys()))
+        qty = random.choice([1, 1, 1, 2])
+        day_offset = random.randint(0, 240)
+        date = now - timedelta(days=day_offset, hours=random.randint(7, 17))
+        wo_num = f"WO-{6000 + i:04d}"
+
+        bom = db.query(models.BOMLine).filter(models.BOMLine.trailer_line == line).all()
+        material_cost = 0.0
+        for bl in bom:
+            consumed = bl.quantity * qty
+            material_cost += consumed * bl.product.unit_cost
+            db.add(models.StockMovement(
+                date=date, product_id=bl.product_id,
+                movement_type="OUT",
+                quantity=max(1, int(round(consumed))),
+                reason=f"Producción {line} {wo_num}",
+                reference=wo_num,
+            ))
+        db.add(models.WorkOrder(
+            wo_number=wo_num, trailer_line=line, quantity=qty,
+            date=date, status="completed",
+            material_cost=round(material_cost, 2),
+        ))
+    db.commit()
+
+    # Refresh stock counts from movements (start from PRODUCTS initial then apply net)
+    # Rebuild stock = initial_stock + sum(IN) - sum(OUT) across movements
+    from sqlalchemy import func
+    for p in db.query(models.Product).all():
+        initial = next((s for sku, _, _, _, _, s, _, _, _ in PRODUCTS if sku == p.sku), 0)
+        ins = db.query(func.coalesce(func.sum(models.StockMovement.quantity), 0)).filter(
+            models.StockMovement.product_id == p.id,
+            models.StockMovement.movement_type == "IN"
+        ).scalar() or 0
+        outs = db.query(func.coalesce(func.sum(models.StockMovement.quantity), 0)).filter(
+            models.StockMovement.product_id == p.id,
+            models.StockMovement.movement_type == "OUT"
+        ).scalar() or 0
+        p.stock = max(0, initial + int(ins) - int(outs))
+    db.commit()
+
     print("[OK] Seed completo — Wilson Trailer Co.")
     print(f"  Productos:   {db.query(models.Product).count()}")
+    print(f"  BoM lines:   {db.query(models.BOMLine).count()}")
     print(f"  Compras:     {db.query(models.Purchase).count()}")
     print(f"  Gastos:      {db.query(models.Expense).count()}")
+    print(f"  Work orders: {db.query(models.WorkOrder).count()}")
     print(f"  Movimientos: {db.query(models.StockMovement).count()}")
 
 

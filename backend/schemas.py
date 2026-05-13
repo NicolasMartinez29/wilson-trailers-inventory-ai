@@ -120,6 +120,46 @@ class DashboardKPIs(BaseModel):
     monthly_trend: List[dict]
 
 
+# ---------- BoM / Production ----------
+class BOMLineOut(BaseModel):
+    sku: str
+    name: str
+    category: str
+    quantity: float
+    unit_cost: float
+    stock: int
+    line_cost: float
+    sufficient: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BOMOut(BaseModel):
+    trailer_line: str
+    lines: List[BOMLineOut]
+    total_cost: float
+    max_buildable: int
+    missing_skus: List[str]
+
+
+class ProduceRequest(BaseModel):
+    trailer_line: str
+    quantity: int = 1
+    wo_number: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class WorkOrderOut(BaseModel):
+    id: int
+    wo_number: str
+    trailer_line: str
+    quantity: int
+    date: datetime
+    status: str
+    material_cost: float
+    notes: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
 # ---------- AI ----------
 class AIQuery(BaseModel):
     question: str

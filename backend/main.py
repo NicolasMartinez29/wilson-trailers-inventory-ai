@@ -298,6 +298,120 @@ def get_history(limit: int = 100, db: Session = Depends(get_db)):
     return timeline[:limit]
 
 
+# ----------- BoM / Production -----------
+@app.get("/api/bom/{trailer_line}", response_model=schemas.BOMOut)
+def get_bom(trailer_line: str, db: Session = Depends(get_db)):
+    rows = (
+        db.query(models.BOMLine)
+        .filter(models.BOMLine.trailer_line == trailer_line)
+        .all()
+    )
+    if not rows:
+        raise HTTPException(404, f"No BoM defined for {trailer_line}")
+
+    lines = []
+    total = 0.0
+    max_buildable = float("inf")
+    missing = []
+    for bl in rows:
+        p = bl.product
+        line_cost = bl.quantity * p.unit_cost
+        total += line_cost
+        sufficient = p.stock >= bl.quantity
+        if not sufficient:
+            missing.append(p.sku)
+        if bl.quantity > 0:
+            buildable = int(p.stock // bl.quantity)
+            max_buildable = min(max_buildable, buildable)
+        lines.append(schemas.BOMLineOut(
+            sku=p.sku, name=p.name, category=p.category,
+            quantity=bl.quantity, unit_cost=p.unit_cost,
+            stock=p.stock, line_cost=round(line_cost, 2),
+            sufficient=sufficient,
+        ))
+    return schemas.BOMOut(
+        trailer_line=trailer_line,
+        lines=sorted(lines, key=lambda l: l.line_cost, reverse=True),
+        total_cost=round(total, 2),
+        max_buildable=0 if max_buildable == float("inf") else int(max_buildable),
+        missing_skus=missing,
+    )
+
+
+@app.get("/api/bom")
+def list_bom_lines(db: Session = Depends(get_db)):
+    rows = db.query(models.BOMLine.trailer_line).distinct().all()
+    out = []
+    for (line,) in rows:
+        bom = get_bom(line, db)
+        out.append({
+            "trailer_line": line,
+            "total_cost": bom.total_cost,
+            "max_buildable": bom.max_buildable,
+            "missing_count": len(bom.missing_skus),
+            "line_count": len(bom.lines),
+        })
+    return out
+
+
+@app.get("/api/work-orders", response_model=List[schemas.WorkOrderOut])
+def list_work_orders(limit: int = 50, db: Session = Depends(get_db)):
+    return db.query(models.WorkOrder).order_by(models.WorkOrder.date.desc()).limit(limit).all()
+
+
+@app.post("/api/produce", response_model=schemas.WorkOrderOut)
+def produce(payload: schemas.ProduceRequest, db: Session = Depends(get_db)):
+    bom = db.query(models.BOMLine).filter(models.BOMLine.trailer_line == payload.trailer_line).all()
+    if not bom:
+        raise HTTPException(400, f"No BoM for {payload.trailer_line}")
+    if payload.quantity < 1:
+        raise HTTPException(400, "quantity must be >= 1")
+
+    # Check sufficient stock
+    insufficient = []
+    for bl in bom:
+        need = bl.quantity * payload.quantity
+        if bl.product.stock < need:
+            insufficient.append({
+                "sku": bl.product.sku, "name": bl.product.name,
+                "need": need, "have": bl.product.stock,
+            })
+    if insufficient:
+        raise HTTPException(400, {
+            "error": "insufficient_stock",
+            "items": insufficient,
+        })
+
+    wo_num = payload.wo_number or f"WO-{int(datetime.utcnow().timestamp()) % 100000:05d}"
+    if db.query(models.WorkOrder).filter(models.WorkOrder.wo_number == wo_num).first():
+        raise HTTPException(400, "wo_number already exists")
+
+    material_cost = 0.0
+    now = datetime.utcnow()
+    for bl in bom:
+        consumed = bl.quantity * payload.quantity
+        material_cost += consumed * bl.product.unit_cost
+        qty_int = max(1, int(round(consumed)))
+        bl.product.stock = max(0, bl.product.stock - qty_int)
+        db.add(models.StockMovement(
+            date=now, product_id=bl.product_id,
+            movement_type="OUT", quantity=qty_int,
+            reason=f"Producción {payload.trailer_line} {wo_num}",
+            reference=wo_num,
+        ))
+
+    wo = models.WorkOrder(
+        wo_number=wo_num, trailer_line=payload.trailer_line,
+        quantity=payload.quantity, date=now,
+        status="completed", material_cost=round(material_cost, 2),
+        notes=payload.notes,
+    )
+    db.add(wo)
+    db.commit()
+    db.refresh(wo)
+    return wo
+
+
 # ----------- AI Assistant -----------
 @app.post("/api/ai/ask", response_model=schemas.AIResponse)
 def ai_ask(query: schemas.AIQuery, db: Session = Depends(get_db)):

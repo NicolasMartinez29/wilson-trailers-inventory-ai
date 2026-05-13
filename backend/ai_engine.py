@@ -83,10 +83,80 @@ def _summarize_state(db: Session) -> dict:
     }
 
 
+def _forecast_runout(db: Session, top_n: int = 8):
+    """Compute days-until-runout for each SKU based on avg daily OUT consumption."""
+    cutoff = datetime.utcnow() - timedelta(days=60)
+    rows = (
+        db.query(
+            models.StockMovement.product_id,
+            func.sum(models.StockMovement.quantity).label("total_out"),
+        )
+        .filter(
+            models.StockMovement.movement_type == "OUT",
+            models.StockMovement.date >= cutoff,
+        )
+        .group_by(models.StockMovement.product_id)
+        .all()
+    )
+    forecast = []
+    for pid, total_out in rows:
+        p = db.query(models.Product).get(pid)
+        if not p or not total_out:
+            continue
+        daily = float(total_out) / 60.0
+        if daily <= 0:
+            continue
+        days_left = p.stock / daily if daily > 0 else float("inf")
+        forecast.append({
+            "sku": p.sku, "name": p.name, "stock": p.stock,
+            "daily_rate": round(daily, 2),
+            "days_left": round(days_left, 1),
+            "supplier": p.supplier,
+        })
+    forecast.sort(key=lambda x: x["days_left"])
+    return forecast[:top_n]
+
+
 def _local_answer(question: str, state: dict, db: Session) -> str:
     q = question.lower().strip()
 
     money = lambda v: f"${v:,.2f}"
+
+    # Forecast / proyección / cuánto me dura / se acaba primero
+    if any(k in q for k in ["forecast", "proyec", "dura", "agotar", "runout", "acab", "primer", "se va a", "queda"]):
+        fc = _forecast_runout(db)
+        if not fc:
+            return "No hay suficiente historial de consumo para proyectar."
+        lines = ["**Proyección de agotamiento (ritmo de los últimos 60 días):**\n"]
+        for it in fc:
+            days = it["days_left"]
+            flag = "🔴" if days < 14 else ("🟡" if days < 30 else "")
+            lines.append(
+                f"• {it['sku']} — {it['name']}: **{int(days)}d** "
+                f"(stock {it['stock']}, consume {it['daily_rate']}/d)"
+                + (f" {flag}" if flag else "")
+            )
+        lines.append(f"\nProveedor de los más críticos: {fc[0].get('supplier','—')}")
+        return "\n".join(lines)
+
+    # Producción / BoM
+    if any(k in q for k in ["produc", "fabric", "construir", "buildable", "armar", "build"]):
+        boms = db.query(models.BOMLine.trailer_line).distinct().all()
+        lines_list = [b[0] for b in boms]
+        if not lines_list:
+            return "No hay Bills of Materials cargados."
+        lines = ["**Capacidad de producción actual:**\n"]
+        for line in lines_list:
+            bom = db.query(models.BOMLine).filter(models.BOMLine.trailer_line == line).all()
+            buildable = float("inf")
+            total_cost = 0.0
+            for bl in bom:
+                if bl.quantity > 0:
+                    buildable = min(buildable, int(bl.product.stock // bl.quantity))
+                total_cost += bl.quantity * bl.product.unit_cost
+            buildable = 0 if buildable == float("inf") else int(buildable)
+            lines.append(f"• **{line}**: puedes armar **{buildable}** unidades (costo material por unidad: {money(total_cost)})")
+        return "\n".join(lines)
 
     # Stock / inventario
     if any(k in q for k in ["cuánto tengo", "cuanto tengo", "stock total", "inventario total", "how much"]):

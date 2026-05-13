@@ -248,6 +248,56 @@ function expensesApp() {
   };
 }
 
+function productionApp() {
+  return {
+    boms: [],
+    bom: null,
+    selected: null,
+    workOrders: [],
+    produceQty: 1,
+    producing: false,
+    toast: null,
+    async init() {
+      this.boms = await api('/api/bom');
+      this.workOrders = await api('/api/work-orders?limit=20');
+      if (this.boms.length) await this.selectLine(this.boms[0].trailer_line);
+    },
+    async selectLine(line) {
+      this.selected = line;
+      this.bom = await api(`/api/bom/${encodeURIComponent(line)}`);
+    },
+    async produce() {
+      if (!this.bom || this.producing) return;
+      this.producing = true;
+      try {
+        const r = await fetch('/api/produce', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ trailer_line: this.selected, quantity: this.produceQty }),
+        });
+        if (!r.ok) {
+          const err = await r.json();
+          alert('Production failed: ' + (typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail)));
+          this.producing = false;
+          return;
+        }
+        const wo = await r.json();
+        this.toast = `${wo.wo_number} · ${wo.trailer_line} × ${wo.quantity} · material ${fmtMoney(wo.material_cost)}`;
+        setTimeout(() => this.toast = null, 5000);
+        // Refresh
+        this.boms = await api('/api/bom');
+        this.workOrders = await api('/api/work-orders?limit=20');
+        await this.selectLine(this.selected);
+      } catch (e) {
+        alert('Error: ' + e.message);
+      } finally {
+        this.producing = false;
+      }
+    },
+    fmtMoney, fmtDateTime,
+  };
+}
+
 function historyApp() {
   return {
     events: [],
@@ -274,11 +324,12 @@ function assistantApp() {
     loading: false,
     suggestions: [
       'general summary',
+      'cuántos trailers puedo producir',
+      'qué SKUs se acaban primero',
       'skus below minimum',
       'purchases this month',
       'expenses by category',
       'top 5 by value',
-      'total stock units',
     ],
     async send(q) {
       const question = (q || this.input || '').trim();
@@ -311,5 +362,6 @@ window.dashboardApp = dashboardApp;
 window.inventoryApp = inventoryApp;
 window.purchasesApp = purchasesApp;
 window.expensesApp = expensesApp;
+window.productionApp = productionApp;
 window.historyApp = historyApp;
 window.assistantApp = assistantApp;

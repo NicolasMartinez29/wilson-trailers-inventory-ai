@@ -26,7 +26,8 @@
       <a href="#" :class="{active: view==='inventory'}"  @click.prevent="view='inventory'"><span class="key">02</span> Inventory</a>
       <a href="#" :class="{active: view==='purchases'}"  @click.prevent="view='purchases'"><span class="key">03</span> Purchases</a>
       <a href="#" :class="{active: view==='expenses'}"   @click.prevent="view='expenses'"><span class="key">04</span> Expenses</a>
-      <a href="#" :class="{active: view==='history'}"    @click.prevent="view='history'"><span class="key">05</span> Activity Log</a>
+      <a href="#" :class="{active: view==='production'}" @click.prevent="view='production'"><span class="key">05</span> Production</a>
+      <a href="#" :class="{active: view==='history'}"    @click.prevent="view='history'"><span class="key">06</span> Activity Log</a>
     </nav>
 
     <div class="section-label">Intelligence</div>
@@ -405,6 +406,100 @@
             <button class="btn" @click="showModal=false">Cancel</button>
             <button class="btn btn-primary" @click="save()">Register</button>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PRODUCTION ============ -->
+    <section x-show="view==='production'" x-data="productionApp()" x-init="init()" x-cloak>
+      <div class="topbar">
+        <div>
+          <h1><span class="crumb">wilson</span><span class="sep">/</span><span>production</span></h1>
+          <div class="sub">Bill of materials · work orders · auto stock consumption</div>
+        </div>
+        <div class="actions">
+          <span class="status-dot"><span class="d"></span> BOM LOADED</span>
+        </div>
+      </div>
+
+      <div class="content">
+        <!-- Trailer line cards -->
+        <h3 class="section-title">Producible models</h3>
+        <div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+          <template x-for="b in boms" :key="b.trailer_line">
+            <div class="kpi" style="cursor:pointer;" @click="selectLine(b.trailer_line)" :style="selected===b.trailer_line ? 'background:var(--hover);' : ''">
+              <div class="label" x-text="b.trailer_line"></div>
+              <div class="value" :style="b.max_buildable === 0 ? 'color:var(--red);' : 'color:var(--green);'" x-text="String(b.max_buildable).padStart(2,'0')"></div>
+              <div class="meta">
+                <span class="num" x-text="b.line_count + ' parts'"></span>
+                <span class="num" x-text="fmtMoney(b.total_cost)"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- BoM detail -->
+        <div class="panel standalone" x-show="bom" style="padding:0;">
+          <div class="panel-h" style="padding:14px 20px;border-bottom:1px solid var(--line);">
+            <h3>BoM · <span x-text="bom?.trailer_line"></span></h3>
+            <div style="display:flex;gap:14px;align-items:center;">
+              <span style="font-family:var(--mono);font-size:11px;color:var(--dim);">material cost per unit <span style="color:var(--text);" x-text="fmtMoney(bom?.total_cost || 0)"></span></span>
+              <span style="font-family:var(--mono);font-size:11px;color:var(--dim);">buildable <span :style="bom?.max_buildable === 0 ? 'color:var(--red);' : 'color:var(--green);'" x-text="bom?.max_buildable || 0"></span></span>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <input class="input mono" type="number" min="1" x-model.number="produceQty" style="width:60px;padding:5px 8px;">
+                <button class="btn btn-primary" :disabled="(bom?.max_buildable || 0) < produceQty || producing" @click="produce()">
+                  <span x-show="!producing">Produce</span>
+                  <span x-show="producing"><span class="spinner"></span> producing…</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <table class="tbl">
+            <thead><tr><th>SKU</th><th>Item</th><th>Category</th><th>Qty/unit</th><th>Unit cost</th><th>Line cost</th><th>Stock</th><th>Status</th></tr></thead>
+            <tbody>
+              <template x-for="l in (bom?.lines || [])" :key="l.sku">
+                <tr>
+                  <td><span class="sku" x-text="l.sku"></span></td>
+                  <td x-text="l.name"></td>
+                  <td><span class="num" x-text="l.category"></span></td>
+                  <td><span class="num" x-text="l.quantity"></span></td>
+                  <td><span class="num" x-text="fmtMoney(l.unit_cost)"></span></td>
+                  <td><span class="num-strong" x-text="fmtMoney(l.line_cost)"></span></td>
+                  <td><span class="num" x-text="l.stock"></span></td>
+                  <td><span class="tag" :class="l.sufficient ? 'tag-ok' : 'tag-low'" x-text="l.sufficient ? 'ok' : 'short'"></span></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Recent Work Orders -->
+        <h3 class="section-title" style="margin-top:24px;">Recent work orders</h3>
+        <div class="panel standalone" style="padding:0;">
+          <table class="tbl">
+            <thead><tr><th>WO</th><th>Line</th><th>Qty</th><th>Material cost</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>
+              <template x-for="w in workOrders" :key="w.id">
+                <tr>
+                  <td><span class="sku" x-text="w.wo_number"></span></td>
+                  <td><span class="tag tag-line" x-text="w.trailer_line"></span></td>
+                  <td><span class="num" x-text="w.quantity"></span></td>
+                  <td><span class="num-strong" x-text="fmtMoney(w.material_cost)"></span></td>
+                  <td><span class="tag tag-ok" x-text="w.status"></span></td>
+                  <td><span class="num" x-text="fmtDateTime(w.date)"></span></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div x-show="workOrders.length === 0" class="empty">No work orders</div>
+        </div>
+
+        <!-- Toast feedback -->
+        <div x-show="toast" x-cloak
+             style="position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--red);padding:14px 18px;font-family:var(--mono);font-size:12px;color:var(--text);max-width:380px;z-index:200;"
+             x-transition>
+          <div style="color:var(--red);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:.08em;">production registered</div>
+          <div x-text="toast"></div>
         </div>
       </div>
     </section>

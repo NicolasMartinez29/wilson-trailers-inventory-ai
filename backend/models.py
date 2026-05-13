@@ -11,7 +11,7 @@ class Product(Base):
     sku = Column(String, unique=True, index=True, nullable=False)
     name = Column(String, nullable=False)
     category = Column(String, nullable=False)
-    trailer_line = Column(String, nullable=True)  # Silverstar, Pacesetter, etc.
+    trailer_line = Column(String, nullable=True)
     unit_cost = Column(Float, nullable=False, default=0.0)
     stock = Column(Integer, nullable=False, default=0)
     min_stock = Column(Integer, nullable=False, default=5)
@@ -28,7 +28,7 @@ class Purchase(Base):
     po_number = Column(String, unique=True, index=True, nullable=False)
     vendor = Column(String, nullable=False)
     date = Column(DateTime, default=datetime.utcnow)
-    status = Column(String, default="received")  # ordered, received, partial
+    status = Column(String, default="received")
     total = Column(Float, nullable=False, default=0.0)
     notes = Column(Text, nullable=True)
 
@@ -67,9 +67,37 @@ class StockMovement(Base):
     id = Column(Integer, primary_key=True, index=True)
     date = Column(DateTime, default=datetime.utcnow)
     product_id = Column(Integer, ForeignKey("products.id"))
-    movement_type = Column(String, nullable=False)  # IN, OUT, ADJUST
+    movement_type = Column(String, nullable=False)
     quantity = Column(Integer, nullable=False)
     reason = Column(String, nullable=True)
-    reference = Column(String, nullable=True)  # PO #, work order #, etc.
+    reference = Column(String, nullable=True)
 
     product = relationship("Product")
+
+
+# ===== Bill of Materials =====
+class BOMLine(Base):
+    """Receta: por cada tráiler de una línea, descuenta N unidades del SKU."""
+    __tablename__ = "bom_lines"
+
+    id = Column(Integer, primary_key=True, index=True)
+    trailer_line = Column(String, index=True, nullable=False)  # "Silverstar", "Pacesetter", etc.
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    quantity = Column(Float, nullable=False, default=1.0)
+    notes = Column(String, nullable=True)
+
+    product = relationship("Product")
+
+
+# ===== Work Orders (Producción) =====
+class WorkOrder(Base):
+    __tablename__ = "work_orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    wo_number = Column(String, unique=True, index=True, nullable=False)
+    trailer_line = Column(String, nullable=False)
+    quantity = Column(Integer, nullable=False, default=1)
+    date = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, default="completed")  # completed, in_progress
+    material_cost = Column(Float, default=0.0)
+    notes = Column(Text, nullable=True)
